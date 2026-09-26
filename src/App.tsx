@@ -7,7 +7,8 @@ import { Prep } from './components/Prep';
 import { Setup } from './components/Setup';
 import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
-import { aiEdit, mediaProxy, uploadImage } from './lib/api';
+import { aiEdit, CUTOUT_PROMPT, mediaProxy, uploadImage } from './lib/api';
+import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
 import { makeSample } from './lib/sample';
@@ -25,6 +26,7 @@ export function App() {
   const [working, setWorking] = useState<ImageBitmap | null>(null);
   const [crop, setCrop] = useState<Crop>(START_CROP);
   const [treat, setTreat] = useState<Treat>('direct');
+  const [aspectId, setAspectId] = useState<AspectId>('free');
   const [knockout, setKnockout] = useState(false);
   const beforeKnockout = useRef<ImageBitmap | null>(null);
   const [longSide, setLongSide] = useState(32);
@@ -70,6 +72,7 @@ export function App() {
     setOriginal(bitmap);
     setWorking(bitmap);
     setCrop(START_CROP);
+    setAspectId('free');
     setTreat('direct');
     setKnockout(false);
     beforeKnockout.current = null;
@@ -188,16 +191,42 @@ export function App() {
             image={working}
             crop={crop}
             treat={treat}
+            aspectId={aspectId}
             knockout={knockout}
             canRestore={working !== original}
             onCrop={setCrop}
             onTreat={setTreat}
+            onAspect={(id) => {
+              setAspectId(id);
+              const item = ASPECTS.find((entry) => entry.id === id);
+              if (item?.value) setCrop(cropForAspect(working.width, working.height, item.value));
+            }}
             onKnockoutChange={(on) => {
               if (!on) {
                 const prev = beforeKnockout.current;
                 beforeKnockout.current = null;
                 setKnockout(false);
                 if (prev) setWorking(prev);
+                return;
+              }
+              if (treat === 'style') {
+                void (async () => {
+                  setBusy('正在去掉背景…');
+                  try {
+                    const blob = await blobForUpload(working, FULL_CROP);
+                    const url = await uploadImage(blob);
+                    const result = await aiEdit(url, CUTOUT_PROMPT);
+                    const image = await loadImage(mediaProxy(result));
+                    beforeKnockout.current = working;
+                    setWorking(await createImageBitmap(image));
+                    setKnockout(true);
+                    showToast('背景已经去掉了');
+                  } catch (error) {
+                    showToast(error instanceof Error ? error.message : '背景没去掉');
+                  } finally {
+                    setBusy(null);
+                  }
+                })();
                 return;
               }
               void (async () => {
@@ -210,7 +239,7 @@ export function App() {
                     return;
                   }
                   if (removedRatio > 0.97) {
-                    showToast('背景和主体太像了，可以试试风格化里的去掉背景');
+                    showToast('背景和主体太像了，可以切到风格化再去掉背景');
                     return;
                   }
                   beforeKnockout.current = working;
@@ -225,7 +254,8 @@ export function App() {
             onRestore={() => {
               if (!original) return;
               setWorking(original);
-              setCrop(START_CROP);
+              const item = ASPECTS.find((entry) => entry.id === aspectId);
+              setCrop(item?.value ? cropForAspect(original.width, original.height, item.value) : START_CROP);
               setKnockout(false);
               beforeKnockout.current = null;
             }}
@@ -237,8 +267,10 @@ export function App() {
                   const url = await uploadImage(blob);
                   const result = await aiEdit(url, preset.prompt);
                   const image = await loadImage(mediaProxy(result));
-                  setWorking(await createImageBitmap(image));
-                  setCrop(START_CROP);
+                  const bitmap = await createImageBitmap(image);
+                  setWorking(bitmap);
+                  const item = ASPECTS.find((entry) => entry.id === aspectId);
+                  setCrop(item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP);
                   setKnockout(false);
                   beforeKnockout.current = null;
                   showToast('新图好了，可以再裁一裁');
