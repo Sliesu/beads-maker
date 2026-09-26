@@ -1,0 +1,102 @@
+import { AI_PRESETS } from '../lib/api';
+import { ASPECTS, type AspectId } from '../lib/crop';
+import type { Crop, Treat } from '../types';
+import { FULL_CROP } from '../types';
+import { CropStage } from './CropStage';
+
+type Props = {
+  image: ImageBitmap;
+  crop: Crop;
+  treat: Treat;
+  aspectId: AspectId;
+  knockout: boolean;
+  canRestore: boolean;
+  onCrop: (crop: Crop) => void;
+  onTreat: (treat: Treat) => void;
+  onAspect: (id: AspectId) => void;
+  onKnockoutChange: (on: boolean) => void;
+  onRestore: () => void;
+  onAi: (preset: (typeof AI_PRESETS)[number]) => void;
+  onBack: () => void;
+  onNext: () => void;
+};
+
+export function Prep(props: Props) {
+  const { treat } = props;
+  const aspect = ASPECTS.find((item) => item.id === props.aspectId)?.value ?? null;
+  return (
+    <section className="screen">
+      <header className="topbar">
+        <button className="text-btn" onClick={props.onBack}>
+          返回
+        </button>
+        <strong>裁一裁</strong>
+        <button
+          className="text-btn"
+          onClick={() => {
+            props.onAspect('free');
+            props.onCrop(FULL_CROP);
+          }}
+        >
+          整张
+        </button>
+      </header>
+      <div className="screen-body prep-body">
+        <CropStage image={props.image} crop={props.crop} aspect={aspect} onChange={props.onCrop} />
+        <p className="hint">拖动方框，拉角可以改大小</p>
+        <div className="chip-row scroll">
+          {ASPECTS.map((item) => (
+            <button
+              key={item.id}
+              className={props.aspectId === item.id ? 'chip on' : 'chip'}
+              onClick={() => props.onAspect(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="mode-row">
+          <button className={treat === 'direct' ? 'mode-card on' : 'mode-card'} onClick={() => props.onTreat('direct')}>
+            <b>原图</b>
+            <span>直接转</span>
+          </button>
+          <button className={treat === 'style' ? 'mode-card on' : 'mode-card'} onClick={() => props.onTreat('style')}>
+            <b>风格化</b>
+            <span>AI 改图</span>
+          </button>
+        </div>
+        {treat === 'style' && (
+          <div className="chip-row scroll style-row">
+            {AI_PRESETS.map((item) => (
+              <button key={item.id} className="style-card" onClick={() => props.onAi(item)}>
+                <img src={item.preview} alt="" />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="inline-actions">
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={props.knockout}
+              onChange={(event) => props.onKnockoutChange(event.target.checked)}
+            />
+            <span className="check-box" aria-hidden />
+            <span>{treat === 'style' ? '去掉背景' : '去掉纯色背景'}</span>
+          </label>
+          {props.canRestore && (
+            <button className="text-btn" onClick={props.onRestore}>
+              恢复原图
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="screen-foot">
+        <button className="btn btn-primary btn-block" onClick={props.onNext}>
+          选尺寸和色号
+        </button>
+      </div>
+    </section>
+  );
+}

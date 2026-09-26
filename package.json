@@ -1,0 +1,23 @@
+{
+  "name": "doudoumaru",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "start": "NODE_ENV=production node server/index.mjs"
+  },
+  "dependencies": {
+    "cos-nodejs-sdk-v5": "^2.15.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}
