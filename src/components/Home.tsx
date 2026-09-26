@@ -3,12 +3,11 @@ import { Mascot } from './Mascot';
 type Props = {
   hasDraft: boolean;
   onPick: () => void;
-  onSample: () => void;
-  onContinue: () => void;
+  onHistory: () => void;
   onAbout: () => void;
 };
 
-export function Home({ hasDraft, onPick, onSample, onContinue, onAbout }: Props) {
+export function Home({ hasDraft, onPick, onHistory, onAbout }: Props) {
   return (
     <section className="screen home">
       <div className="home-main">
@@ -27,12 +26,9 @@ export function Home({ hasDraft, onPick, onSample, onContinue, onAbout }: Props)
         <button className="btn btn-primary btn-block" onClick={onPick}>
           从相册选图
         </button>
-        <button className="btn btn-ghost btn-block" onClick={onSample}>
-          先看示例
-        </button>
         {hasDraft && (
-          <button className="text-btn" onClick={onContinue}>
-            继续上次的图纸
+          <button className="btn btn-ghost btn-block" onClick={onHistory}>
+            查看历史记录
           </button>
         )}
         <button className="text-btn quiet" onClick={onAbout}>

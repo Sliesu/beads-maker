@@ -11,7 +11,6 @@ import { aiEdit, CUTOUT_PROMPT, mediaProxy, uploadImage } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
-import { makeSample } from './lib/sample';
 import { hasDraft, loadDraft, loadExportSettings, loadPref, saveDraft, saveExportSettings } from './lib/storage';
 import type { Crop, Project, Treat } from './types';
 import { FULL_CROP } from './types';
@@ -168,10 +167,7 @@ export function App() {
           <Home
             hasDraft={draftReady}
             onPick={() => fileRef.current?.click()}
-            onSample={() => {
-              void makeSample().then(openBitmap).catch(() => showToast('示例没有准备好'));
-            }}
-            onContinue={() => {
+            onHistory={() => {
               const draft = loadDraft();
               if (!draft) return;
               history.current = [];
