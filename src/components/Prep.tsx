@@ -1,7 +1,6 @@
 import { AI_PRESETS } from '../lib/api';
 import { ASPECTS, type AspectId } from '../lib/crop';
 import type { Crop, Treat } from '../types';
-import { FULL_CROP } from '../types';
 import { CropStage } from './CropStage';
 
 type Props = {
@@ -31,15 +30,7 @@ export function Prep(props: Props) {
           返回
         </button>
         <strong>裁一裁</strong>
-        <button
-          className="text-btn"
-          onClick={() => {
-            props.onAspect('free');
-            props.onCrop(FULL_CROP);
-          }}
-        >
-          整张
-        </button>
+        <span />
       </header>
       <div className="screen-body prep-body">
         <CropStage image={props.image} crop={props.crop} aspect={aspect} onChange={props.onCrop} />

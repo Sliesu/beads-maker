@@ -3,39 +3,53 @@ export const CUTOUT_PROMPT =
 
 export const AI_PRESETS = [
   {
-    id: 'manga',
-    label: '漫画风格',
-    preview: '/styles/manga.png',
+    id: 'comic',
+    label: '像素漫画',
+    preview: '/styles/px-comic.png',
     prompt:
-      'Redraw the main subject as a clean Japanese manga illustration with bold black ink outlines, flat colors, and light screentone shadows. Keep a clear silhouette, centered on a plain light background. No text, no speech bubbles, no watermark.',
-  },
-  {
-    id: 'anime',
-    label: '动漫画风',
-    preview: '/styles/anime.png',
-    prompt:
-      'Redraw the main subject as a modern anime illustration with clean lineart, soft flat colors, and simple large shapes. Keep it recognizable and centered on a plain light background. No text, no watermark.',
+      'Redraw the main subject as chunky pixel manga, not a smooth illustration. Use large visible square pixels, thick black pixel outlines, flat orange-and-cream cel colors, and a few blocky shadow pixels. Simplify fine detail so it can be built with perler beads. White background. No speech bubbles, no text, no watermark.',
   },
   {
     id: 'flat',
-    label: '扁平插画',
-    preview: '/styles/flat.png',
+    label: '像素扁平',
+    preview: '/styles/px-flat.png',
     prompt:
-      'Redraw the main subject as a flat vector illustration made of a few solid color shapes with crisp edges and no gradients. Keep a clear silhouette, centered on a plain light background. No text, no watermark.',
+      'Redraw the main subject as simple flat pixel art with a clear black pixel outline around the whole shape. Use only a few flat colors, large square pixels, and almost no interior detail. White background. Must stay pixelated and easy to build with perler beads. No text, no watermark.',
   },
   {
-    id: 'watercolor',
-    label: '水彩',
-    preview: '/styles/watercolor.png',
+    id: 'minimal',
+    label: '抽象简约',
+    preview: '/styles/px-minimal.png',
     prompt:
-      'Redraw the main subject as a gentle watercolor illustration with soft edges, paper texture, and a limited palette. Keep it recognizable and centered on a plain light background. No text, no watermark.',
+      'Redraw the main subject as an ultra-simple abstract icon of huge geometric color blocks. No outline stroke, no curves, no texture, no gradients. A few solid rectangles only, like a blocky pixel mascot, on a white background. Easy to build with perler beads. No text, no watermark.',
   },
   {
-    id: 'line',
-    label: '线稿',
-    preview: '/styles/line.png',
+    id: 'toon',
+    label: '像素卡通',
+    preview: '/styles/px-toon.png',
     prompt:
-      'Redraw the main subject as clean black line art on a plain white background. Use confident uniform outlines, no shading, and no color fill. Keep a clear silhouette, centered. No text, no watermark.',
+      'Redraw the main subject as a cute cartoon pixel character: oversized round head, enormous sparkling black pixel eyes, tiny body, pink blush squares, and a thick black pixel outline. Chunky square pixels on a white background. Drop fine detail for perler beads. No text, no watermark.',
+  },
+  {
+    id: 'abstract',
+    label: '梵高星空',
+    preview: '/styles/px-vangogh.png',
+    prompt:
+      'Redraw the main subject as chunky pixel art imitating Van Gogh, especially The Starry Night. Use swirling bands of large square pixels in deep blue and cyan, with yellow pixel stars. Do not make a smooth oil painting and do not use geometric Bauhaus shapes. Keep the subject readable and simplified for perler beads. No text, no watermark.',
+  },
+  {
+    id: 'cyber',
+    label: '赛博朋克',
+    preview: '/styles/px-cyber.png',
+    prompt:
+      'Redraw the main subject as cyberpunk pixel art on a flat dark navy background. Use neon magenta, cyan, and yellow square pixels, thick pixel edges, and a few simple circuit lines. No natural colors, no white background, no fine detail. Suitable for perler beads. No text, no watermark.',
+  },
+  {
+    id: 'doodle',
+    label: '简笔画',
+    preview: '/styles/px-doodle.png',
+    prompt:
+      'Redraw the main subject as a minimal pixel doodle on pure white. Use only thick black square-pixel strokes, no color fills, lots of empty space, like a simple stick drawing. Must stay pixelated, not smooth pen lines. No text, no watermark.',
   },
 ] as const;
 

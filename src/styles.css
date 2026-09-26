@@ -145,7 +145,7 @@ h1 {
 .topbar .text-btn:last-child { justify-self: end; }
 
 .crop-stage {
-  height: min(28dvh, 260px);
+  height: min(52dvh, 460px);
   touch-action: none;
   position: relative;
 }
