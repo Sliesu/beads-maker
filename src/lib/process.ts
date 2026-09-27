@@ -89,7 +89,11 @@ export function removeBackground(src: Raster, threshold = 26) {
     const x = qx[qs];
     const y = qy[qs];
     qs++;
-    out[(y * width + x) * 4 + 3] = 0;
+    const o = (y * width + x) * 4;
+    out[o] = 0;
+    out[o + 1] = 0;
+    out[o + 2] = 0;
+    out[o + 3] = 0;
     removed++;
     push(x + 1, y);
     push(x - 1, y);

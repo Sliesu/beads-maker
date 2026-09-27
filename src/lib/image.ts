@@ -25,11 +25,13 @@ export async function bitmapFromRaster(raster: Raster) {
   const canvas = document.createElement('canvas');
   canvas.width = raster.width;
   canvas.height = raster.height;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: true });
   if (!ctx) throw new Error('画布不可用');
   const copy = new Uint8ClampedArray(raster.data);
   ctx.putImageData(new ImageData(copy, raster.width, raster.height), 0, 0);
-  return createImageBitmap(canvas);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('图片导出失败');
+  return createImageBitmap(blob);
 }
 
 export async function blobForUpload(image: Sized, crop: Crop) {

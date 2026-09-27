@@ -169,6 +169,7 @@ async function createAiTask(req, res) {
         image_urls: [payload.imageUrl],
         prompt: String(payload.prompt || '').slice(0, 4000),
         aspect_ratio: payload.aspect_ratio || 'auto',
+        resolution: payload.resolution === '2K' ? '2K' : '1K',
       },
     }),
   });

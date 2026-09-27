@@ -7,7 +7,7 @@ import { Prep } from './components/Prep';
 import { Setup } from './components/Setup';
 import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
-import { aiEdit, CUTOUT_PROMPT, keepsBackground, mediaProxy, uploadImage } from './lib/api';
+import { aiEdit, keepsBackground, mediaProxy, uploadImage } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
@@ -25,6 +25,10 @@ export function App() {
   const [working, setWorking] = useState<ImageBitmap | null>(null);
   const [crop, setCrop] = useState<Crop>(START_CROP);
   const [treat, setTreat] = useState<Treat>('direct');
+  const [painting, setPainting] = useState(false);
+  const [styled, setStyled] = useState(false);
+  const styleBase = useRef<ImageBitmap | null>(null);
+  const styleCrop = useRef<Crop | null>(null);
   const [aspectId, setAspectId] = useState<AspectId>('free');
   const [knockout, setKnockout] = useState(false);
   const beforeKnockout = useRef<ImageBitmap | null>(null);
@@ -74,6 +78,10 @@ export function App() {
     setAspectId('free');
     setTreat('direct');
     setKnockout(false);
+    setStyled(false);
+    setPainting(false);
+    styleBase.current = null;
+    styleCrop.current = null;
     beforeKnockout.current = null;
     setStep('prep');
   };
@@ -190,6 +198,8 @@ export function App() {
             aspectId={aspectId}
             knockout={knockout}
             canRestore={working !== original}
+            generating={painting}
+            styled={styled}
             onCrop={setCrop}
             onTreat={setTreat}
             onAspect={(id) => {
@@ -203,26 +213,6 @@ export function App() {
                 beforeKnockout.current = null;
                 setKnockout(false);
                 if (prev) setWorking(prev);
-                return;
-              }
-              if (treat === 'style') {
-                void (async () => {
-                  setBusy('正在去掉背景…');
-                  try {
-                    const blob = await blobForUpload(working, FULL_CROP);
-                    const url = await uploadImage(blob);
-                    const result = await aiEdit(url, CUTOUT_PROMPT);
-                    const image = await loadImage(mediaProxy(result));
-                    beforeKnockout.current = working;
-                    setWorking(await createImageBitmap(image));
-                    setKnockout(true);
-                    showToast('背景已经去掉了');
-                  } catch (error) {
-                    showToast(error instanceof Error ? error.message : '背景没去掉');
-                  } finally {
-                    setBusy(null);
-                  }
-                })();
                 return;
               }
               void (async () => {
@@ -253,39 +243,45 @@ export function App() {
               const item = ASPECTS.find((entry) => entry.id === aspectId);
               setCrop(item?.value ? cropForAspect(original.width, original.height, item.value) : START_CROP);
               setKnockout(false);
+              setStyled(false);
+              styleBase.current = null;
+              styleCrop.current = null;
               beforeKnockout.current = null;
             }}
-            onAi={(preset) => {
+            onNote={showToast}
+            onGenerate={(preset) => {
               void (async () => {
-                setBusy('豆丸在改图…');
+                if (!styleBase.current) {
+                  styleBase.current = working;
+                  styleCrop.current = crop;
+                }
+                const base = styleBase.current;
+                const baseCrop = styleCrop.current ?? crop;
+                setPainting(true);
                 try {
-                  const blob = await blobForUpload(working, crop);
+                  const blob = await blobForUpload(base, baseCrop);
                   const url = await uploadImage(blob);
-                  let result = await aiEdit(url, preset.prompt);
-                  let cutoutFailed = false;
-                  if (!keepsBackground(preset.id)) {
-                    setBusy('正在去掉背景…');
-                    try {
-                      result = await aiEdit(result, CUTOUT_PROMPT);
-                    } catch (error) {
-                      cutoutFailed = true;
-                      showToast(error instanceof Error ? error.message : '背景没去掉');
-                    }
-                  }
+                  const result = await aiEdit(url, preset.prompt, '1K');
                   const image = await loadImage(mediaProxy(result));
-                  const bitmap = await createImageBitmap(image);
+                  let bitmap = await createImageBitmap(image);
+                  let cutoutNote = keepsBackground(preset.id) ? '新图好了，可以再裁一裁' : '新图好了，背景也去掉了';
+                  if (!keepsBackground(preset.id)) {
+                    const raster = rasterFromBitmap(bitmap, FULL_CROP, Math.max(bitmap.width, bitmap.height));
+                    const { raster: next, removedRatio } = removeBackground(raster);
+                    if (removedRatio < 0.02) cutoutNote = '新图好了，但没找到好分开的背景';
+                    else bitmap = await bitmapFromRaster(next);
+                  }
                   setWorking(bitmap);
                   const item = ASPECTS.find((entry) => entry.id === aspectId);
                   setCrop(item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP);
                   setKnockout(false);
                   beforeKnockout.current = null;
-                  if (!cutoutFailed) {
-                    showToast(keepsBackground(preset.id) ? '新图好了，可以再裁一裁' : '新图好了，背景也去掉了');
-                  }
+                  setStyled(true);
+                  showToast(cutoutNote);
                 } catch (error) {
                   showToast(error instanceof Error ? error.message : 'AI 没做成');
                 } finally {
-                  setBusy(null);
+                  setPainting(false);
                 }
               })();
             }}

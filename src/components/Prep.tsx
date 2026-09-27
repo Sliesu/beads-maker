@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { AI_PRESETS } from '../lib/api';
 import { ASPECTS, type AspectId } from '../lib/crop';
 import type { Crop, Treat } from '../types';
 import { CropStage } from './CropStage';
+
+type Preset = (typeof AI_PRESETS)[number];
 
 type Props = {
   image: ImageBitmap;
@@ -10,19 +13,28 @@ type Props = {
   aspectId: AspectId;
   knockout: boolean;
   canRestore: boolean;
+  generating: boolean;
+  styled: boolean;
   onCrop: (crop: Crop) => void;
   onTreat: (treat: Treat) => void;
   onAspect: (id: AspectId) => void;
   onKnockoutChange: (on: boolean) => void;
   onRestore: () => void;
-  onAi: (preset: (typeof AI_PRESETS)[number]) => void;
+  onGenerate: (preset: Preset) => void;
+  onNote: (text: string) => void;
   onBack: () => void;
   onNext: () => void;
 };
 
 export function Prep(props: Props) {
   const { treat } = props;
+  const [styleId, setStyleId] = useState<Preset['id'] | null>(null);
   const aspect = ASPECTS.find((item) => item.id === props.aspectId)?.value ?? null;
+  const preset = AI_PRESETS.find((item) => item.id === styleId) ?? null;
+  const generate = () => {
+    if (!preset || props.generating) return;
+    props.onGenerate(preset);
+  };
   return (
     <section className="screen">
       <header className="topbar">
@@ -33,7 +45,13 @@ export function Prep(props: Props) {
         <span />
       </header>
       <div className="screen-body prep-body">
-        <CropStage image={props.image} crop={props.crop} aspect={aspect} onChange={props.onCrop} />
+        <CropStage
+          image={props.image}
+          crop={props.crop}
+          aspect={aspect}
+          generating={props.generating}
+          onChange={props.onCrop}
+        />
         <p className="hint">拖动方框，拉角可以改大小</p>
         <div className="chip-row scroll">
           {ASPECTS.map((item) => (
@@ -59,26 +77,46 @@ export function Prep(props: Props) {
         {treat === 'style' && (
           <div className="chip-row scroll style-row">
             {AI_PRESETS.map((item) => (
-              <button key={item.id} className="style-card" onClick={() => props.onAi(item)}>
+              <button
+                key={item.id}
+                className={styleId === item.id ? 'style-card on' : 'style-card'}
+                disabled={props.generating}
+                onClick={() => setStyleId(item.id)}
+              >
                 <img src={item.preview} alt="" />
                 <span>{item.label}</span>
               </button>
             ))}
           </div>
         )}
-        {(treat !== 'style' || props.canRestore) && (
+        {treat === 'style' && (
+          <div className="gen-size-block">
+            <p className="hint">生成画质</p>
+            <div className="gen-size" role="group" aria-label="生成画质">
+              <button type="button" className="chip on" disabled={props.generating}>
+                1K
+              </button>
+              <button type="button" className="chip locked" onClick={() => props.onNote('2K 还没开放')}>
+                <svg className="lock-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+                2K
+              </button>
+            </div>
+          </div>
+        )}
+        {treat !== 'style' && (
           <div className="inline-actions">
-            {treat !== 'style' && (
-              <label className="check-line">
-                <input
-                  type="checkbox"
-                  checked={props.knockout}
-                  onChange={(event) => props.onKnockoutChange(event.target.checked)}
-                />
-                <span className="check-box" aria-hidden />
-                <span>去掉纯色背景</span>
-              </label>
-            )}
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={props.knockout}
+                onChange={(event) => props.onKnockoutChange(event.target.checked)}
+              />
+              <span className="check-box" aria-hidden />
+              <span>去掉纯色背景</span>
+            </label>
             {props.canRestore && (
               <button className="text-btn" onClick={props.onRestore}>
                 恢复原图
@@ -88,9 +126,33 @@ export function Prep(props: Props) {
         )}
       </div>
       <div className="screen-foot">
-        <button className="btn btn-primary btn-block" onClick={props.onNext}>
-          选尺寸和色号
-        </button>
+        {treat === 'style' ? (
+          <>
+            {props.styled ? (
+              <div className="foot-split">
+                <button className="btn btn-ghost" disabled={props.generating || !preset} onClick={generate}>
+                  重新生成
+                </button>
+                <button className="btn btn-ghost" disabled={props.generating} onClick={props.onRestore}>
+                  重置
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-primary btn-block" disabled={props.generating || !preset} onClick={generate}>
+                {props.generating ? '生成中…' : '生成'}
+              </button>
+            )}
+            {props.styled && (
+              <button className="btn btn-primary btn-block" disabled={props.generating} onClick={props.onNext}>
+                选尺寸和色号
+              </button>
+            )}
+          </>
+        ) : (
+          <button className="btn btn-primary btn-block" onClick={props.onNext}>
+            选尺寸和色号
+          </button>
+        )}
       </div>
     </section>
   );

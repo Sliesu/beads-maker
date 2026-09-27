@@ -10,6 +10,7 @@ type Props = {
   image: ImageBitmap;
   crop: Crop;
   aspect: number | null;
+  generating?: boolean;
   onChange: (crop: Crop) => void;
 };
 
@@ -20,7 +21,7 @@ function fitBox(width: number, height: number, imageW: number, imageH: number) {
   return { ox: (width - dw) / 2, oy: (height - dh) / 2, dw, dh };
 }
 
-export function CropStage({ image, crop, aspect, onChange }: Props) {
+export function CropStage({ image, crop, aspect, generating = false, onChange }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -76,11 +77,58 @@ export function CropStage({ image, crop, aspect, onChange }: Props) {
       }
     };
 
-    draw();
-    const observer = new ResizeObserver(draw);
+    const drawGenerating = (tick: number, board: HTMLCanvasElement, boardCtx: CanvasRenderingContext2D) => {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor(rect.width * dpr));
+      const height = Math.max(1, Math.floor(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const fit = fitBox(rect.width, rect.height, image.width, image.height);
+      const cols = 40;
+      const rows = Math.max(8, Math.round((cols * fit.dh) / Math.max(fit.dw, 1)));
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = '#F6E4D4';
+      round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
+      ctx.fill();
+      ctx.save();
+      round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
+      ctx.clip();
+      board.width = cols;
+      board.height = rows;
+      boardCtx.imageSmoothingEnabled = true;
+      boardCtx.drawImage(image, 0, 0, cols, rows);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(board, fit.ox, fit.oy, fit.dw, fit.dh);
+      const wash = 0.2 + 0.08 * Math.sin(tick / 8);
+      ctx.fillStyle = `rgba(255, 248, 240, ${wash})`;
+      ctx.fillRect(fit.ox, fit.oy, fit.dw, fit.dh);
+      ctx.restore();
+    };
+
+    const scratch = document.createElement('canvas');
+    const scratchCtx = scratch.getContext('2d');
+    let tick = 0;
+    let timer = 0;
+    const paint = () => {
+      if (generating && scratchCtx) drawGenerating(tick++, scratch, scratchCtx);
+      else draw();
+    };
+    const loop = () => {
+      paint();
+      if (generating) timer = window.setTimeout(loop, 220);
+    };
+    loop();
+    const observer = new ResizeObserver(paint);
     observer.observe(wrap);
-    return () => observer.disconnect();
-  }, [image, crop]);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [image, crop, generating]);
 
   const geometry = () => {
     const rect = wrapRef.current!.getBoundingClientRect();
@@ -89,9 +137,10 @@ export function CropStage({ image, crop, aspect, onChange }: Props) {
 
   return (
     <div
-      className="crop-stage"
+      className={generating ? 'crop-stage generating' : 'crop-stage'}
       ref={wrapRef}
       onPointerDown={(event) => {
+        if (generating) return;
         const { rect, fit } = geometry();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -121,6 +170,7 @@ export function CropStage({ image, crop, aspect, onChange }: Props) {
       }}
     >
       <canvas ref={canvasRef} />
+      {generating && <p className="gen-caption">图片创作中...</p>}
     </div>
   );
 }
