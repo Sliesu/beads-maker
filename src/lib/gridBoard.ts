@@ -2,15 +2,15 @@ export const AXIS = 28;
 
 export type BoardView = { scale: number; tx: number; ty: number };
 
-export function fitBoard(width: number, height: number, cols: number, rows: number): BoardView {
-  const scale = Math.min((width - AXIS) / cols, (height - AXIS) / rows);
+export function fitBoard(width: number, height: number, cols: number, rows: number, edge = AXIS): BoardView {
+  const scale = Math.min((width - edge) / cols, (height - edge) / rows);
   const gw = cols * scale;
   const gh = rows * scale;
-  return { scale, tx: AXIS + (width - AXIS - gw) / 2, ty: AXIS + (height - AXIS - gh) / 2 };
+  return { scale, tx: edge + (width - edge - gw) / 2, ty: edge + (height - edge - gh) / 2 };
 }
 
-function limitScale(scale: number, width: number, height: number, cols: number, rows: number) {
-  const fit = Math.min((width - AXIS) / cols, (height - AXIS) / rows);
+function limitScale(scale: number, width: number, height: number, cols: number, rows: number, edge = AXIS) {
+  const fit = Math.min((width - edge) / cols, (height - edge) / rows);
   return Math.max(fit, Math.min(40, scale));
 }
 
@@ -23,8 +23,9 @@ export function scaleAround(
   height: number,
   cols: number,
   rows: number,
+  edge = AXIS,
 ): BoardView {
-  const scale = limitScale(view.scale * factor, width, height, cols, rows);
+  const scale = limitScale(view.scale * factor, width, height, cols, rows, edge);
   const k = scale / view.scale;
   return { scale, tx: cx - (cx - view.tx) * k, ty: cy - (cy - view.ty) * k };
 }
@@ -48,14 +49,14 @@ function clampRange(value: number, a: number, b: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function slideBoard(view: BoardView, width: number, height: number, cols: number, rows: number): BoardView {
+export function slideBoard(view: BoardView, width: number, height: number, cols: number, rows: number, edge = AXIS): BoardView {
   const gw = cols * view.scale;
   const gh = rows * view.scale;
   const keep = 72;
   return {
     scale: view.scale,
-    tx: clampRange(view.tx, AXIS + keep - gw, width - keep),
-    ty: clampRange(view.ty, AXIS + keep - gh, height - keep),
+    tx: clampRange(view.tx, edge + keep - gw, width - keep),
+    ty: clampRange(view.ty, edge + keep - gh, height - keep),
   };
 }
 
@@ -86,8 +87,8 @@ function wantsNumber(index: number, count: number, step: number) {
   return prev !== count && count - prev >= Math.ceil(step * 0.6);
 }
 
-export function cellAt(view: BoardView, x: number, y: number, cols: number, rows: number) {
-  if (x < AXIS || y < AXIS) return null;
+export function cellAt(view: BoardView, x: number, y: number, cols: number, rows: number, edge = AXIS) {
+  if (x < edge || y < edge) return null;
   const col = Math.floor((x - view.tx) / view.scale);
   const row = Math.floor((y - view.ty) / view.scale);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;

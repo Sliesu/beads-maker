@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { History } from './components/History';
 import { AboutSheet, Confirm, ListSheet, PaletteEditor } from './components/Sheets';
 import { FocusMode } from './components/FocusMode';
 import { Home } from './components/Home';
@@ -11,7 +12,7 @@ import { aiEdit, keepsBackground, mediaProxy, uploadImage, withPixels } from './
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, gridCell, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, pixelColorCount, removeBackground, toPixelArt } from './lib/process';
-import { hasDraft, loadDraft, loadExportSettings, loadPref, saveDraft, saveExportSettings } from './lib/storage';
+import { hasHistory, loadExportSettings, loadHistoryProject, loadPref, saveDraft, saveExportSettings } from './lib/storage';
 import type { Crop, Project, Treat } from './types';
 import { FULL_CROP } from './types';
 
@@ -20,7 +21,8 @@ const START_CROP: Crop = { x: 0.04, y: 0.04, w: 0.92, h: 0.92 };
 export function App() {
   const fileRef = useRef<HTMLInputElement>(null);
   const history = useRef<Int16Array[]>([]);
-  const [step, setStep] = useState<'home' | 'prep' | 'setup' | 'studio'>('home');
+  const [step, setStep] = useState<'home' | 'history' | 'prep' | 'setup' | 'studio'>('home');
+  const resumeFrom = useRef<'home' | 'history'>('home');
   const [original, setOriginal] = useState<ImageBitmap | null>(null);
   const [working, setWorking] = useState<ImageBitmap | null>(null);
   const [crop, setCrop] = useState<Crop>(START_CROP);
@@ -59,7 +61,7 @@ export function App() {
   const toastTimer = useRef(0);
 
   useEffect(() => {
-    setDraftReady(hasDraft());
+    setDraftReady(hasHistory());
   }, []);
 
   const showToast = (message: string) => {
@@ -132,6 +134,7 @@ export function App() {
         denoise: noise,
       });
       const next: Project = {
+        id: crypto.randomUUID(),
         cols,
         rows,
         cells,
@@ -140,6 +143,7 @@ export function App() {
         variantId: variant.id,
         systemLabel: `${getSystem(systemId).name} · ${palette.length} 色`,
       };
+      resumeFrom.current = 'home';
       history.current = [];
       setCanUndo(false);
       setDirty(false);
@@ -176,8 +180,15 @@ export function App() {
           <Home
             hasDraft={draftReady}
             onPick={() => fileRef.current?.click()}
-            onHistory={() => {
-              const draft = loadDraft();
+            onHistory={() => setStep('history')}
+            onAbout={() => setAbout(true)}
+          />
+        )}
+        {step === 'history' && (
+          <History
+            onBack={() => setStep('home')}
+            onOpen={(id) => {
+              const draft = loadHistoryProject(id);
               if (!draft) return;
               history.current = [];
               setCanUndo(false);
@@ -185,10 +196,10 @@ export function App() {
               setProject(draft);
               setSystemId(draft.systemId);
               setVariantId(draft.variantId);
+              resumeFrom.current = 'history';
               setGeneration((value) => value + 1);
               setStep('studio');
             }}
-            onAbout={() => setAbout(true)}
           />
         )}
         {step === 'prep' && working && (
@@ -367,7 +378,7 @@ export function App() {
             onStrokeStart={rememberStroke}
             onEdited={touch}
             onUndo={undo}
-            onBack={() => setStep(working ? 'setup' : 'home')}
+            onBack={() => setStep(resumeFrom.current === 'history' ? 'history' : working ? 'setup' : 'home')}
           />
         )}
         {focusIndex !== null && project && (

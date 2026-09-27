@@ -23,6 +23,7 @@ export type Treat = 'direct' | 'style';
 export type Tool = 'paint' | 'eraser' | 'replace' | 'lens';
 
 export type Project = {
+  id?: string;
   cols: number;
   rows: number;
   cells: Int16Array;
@@ -30,6 +31,7 @@ export type Project = {
   systemId: string;
   variantId: string;
   systemLabel: string;
+  name?: string;
 };
 
 export const FULL_CROP: Crop = { x: 0, y: 0, w: 1, h: 1 };

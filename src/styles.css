@@ -142,6 +142,49 @@ h1 {
   align-items: center;
 }
 .topbar strong { text-align: center; font-weight: 400; font-size: 20px; }
+.history-list { display: flex; flex-direction: column; gap: 12px; }
+.history-empty { padding: 48px 24px; text-align: center; }
+.history-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 2.5px solid var(--line);
+  border-radius: 20px;
+  padding: 12px;
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+.history-card:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--line); }
+.history-thumb {
+  width: 76px;
+  height: 76px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.history-copy { min-width: 0; flex: 1; }
+.history-card strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 400;
+}
+.history-card em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-family: var(--num);
+}
 .topbar .text-btn:last-child { justify-self: end; }
 
 .crop-stage {
@@ -536,20 +579,20 @@ h1 {
 .studio-bar {
   margin: 0 16px calc(12px + env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: 0.78fr 1.22fr;
-  gap: 10px;
+  grid-template-columns: 0.82fr 0.82fr 1.16fr;
+  gap: 8px;
 }
 .studio-act {
   appearance: none;
   height: 52px;
-  padding: 0 16px;
+  padding: 0 8px;
   border: 2.5px solid var(--line);
   border-radius: 999px;
   background: var(--card);
   box-shadow: 3px 3px 0 var(--shadow);
   color: var(--ink);
   font: inherit;
-  font-size: 17px;
+  font-size: 15px;
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -557,8 +600,8 @@ h1 {
   gap: 8px;
 }
 .studio-act svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -585,12 +628,28 @@ h1 {
 }
 .count-pill {
   justify-self: center;
+  appearance: none;
   border: 2px solid var(--line);
   background: #fff;
+  color: inherit;
+  font: inherit;
   border-radius: 999px;
   padding: 6px 10px;
   box-shadow: 2px 2px 0 var(--shadow);
   font-size: 14px;
+  cursor: pointer;
+}
+.usage-total {
+  flex: none;
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.usage-sheet .swatch-cell em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
 }
 .float-palette {
   position: absolute;
@@ -811,6 +870,30 @@ h1 {
 .pair .btn { flex: 1; }
 .sticky-actions { position: sticky; bottom: 0; background: linear-gradient(#fff6ec00, var(--paper) 20%); padding-top: 10px; }
 .export-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.export-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.export-name input {
+  width: 100%;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.export-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 4px;
+}
+.export-switch button { padding: 8px 0; font-size: 15px; }
+.export-block .field { margin-top: 10px; }
+.export-block .btn { margin-top: 14px; }
 .list-total { font-size: 28px; margin: 0 0 8px; }
 .toggle-row { display: flex; gap: 8px; margin-top: 8px; }
 .toggle {

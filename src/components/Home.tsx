@@ -12,7 +12,7 @@ export function Home({ hasDraft, onPick, onHistory, onAbout }: Props) {
     <section className="screen home">
       <div className="home-main">
         <Mascot />
-        <h1>豆豆丸</h1>
+        <h1>豆叽</h1>
         <p>照片进来，变成能拼的图纸</p>
         <div className="step-row" aria-hidden>
           <span>选图</span>
