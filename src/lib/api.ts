@@ -8,54 +8,56 @@ export function withPixels(prompt: string, pixels: number) {
   return `${prompt} Keep about ${pixels} beads of detail along the long side, so the picture stays ${detail}.`;
 }
 
+const asset = (file: string) => `${import.meta.env.BASE_URL}${file.replace(/^\//, '')}`;
+
 // 服务端 server/index.mjs 里的风格名单必须和这里一致。页面不能自己写提示词。
 export const AI_PRESETS = [
   {
     id: 'toon',
     label: '像素卡通',
-    preview: '/styles/px-toon2.png',
+    preview: asset('styles/px-toon2.png'),
     prompt: 'Redraw the subject as a cute cartoon, on a plain background.',
   },
   {
     id: 'voxel',
     label: '像素写实',
-    preview: '/styles/px-iso.png',
+    preview: asset('styles/px-iso.png'),
     prompt: 'Redraw the subject as pixel art that still looks like the real thing, on a plain background.',
   },
   {
     id: 'flat',
     label: '像素扁平',
-    preview: '/styles/px-flat.png',
+    preview: asset('styles/px-flat.png'),
     prompt: 'Redraw the subject as flat, graphic pixel art, on a plain background.',
   },
   {
     id: 'comic',
     label: '红白机',
-    preview: '/styles/px-comic2.png',
+    preview: asset('styles/px-comic2.png'),
     prompt: 'Redraw the subject in an 8-bit NES game style, on a plain background.',
   },
   {
     id: 'minimal',
     label: '抽象简约',
-    preview: '/styles/px-minimal2.png',
+    preview: asset('styles/px-minimal2.png'),
     prompt: 'Redraw the subject in a simple abstract way, still recognizable, on a plain background.',
   },
   {
     id: 'doodle',
     label: '简笔画',
-    preview: '/styles/px-doodle.png',
+    preview: asset('styles/px-doodle.png'),
     prompt: 'Redraw the subject as a simple line doodle, on a plain background.',
   },
   {
     id: 'abstract',
     label: '梵高星空',
-    preview: '/styles/px-star.png',
+    preview: asset('styles/px-star.png'),
     prompt: "Redraw the picture in the spirit of Van Gogh's Starry Night, and keep the scene.",
   },
   {
     id: 'photo',
     label: '像素画',
-    preview: '/styles/px-scene128.png',
+    preview: asset('styles/px-scene128.png'),
     prompt: 'Redraw the whole picture as pixel art, and keep the original scene.',
   },
 ] as const;
