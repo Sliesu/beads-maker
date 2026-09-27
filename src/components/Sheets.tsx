@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { getVariant } from '../data/palettes';
-import { downloadCsv, downloadPng, downloadSvg, listText, type PatternExport } from '../lib/export';
+import { downloadCsv, downloadSheetPng, listText, type PatternExport } from '../lib/export';
 import type { Pref } from '../lib/process';
 import { summarize } from '../lib/process';
 import { loadPref, savePref, type ExportSettings } from '../lib/storage';
@@ -11,9 +11,9 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
     <div className="backdrop" onClick={onClose}>
       <div className="sheet short" onClick={(event) => event.stopPropagation()}>
         <div className="sheet-handle" />
-        <h2>豆丸怎么干活</h2>
+        <h2>豆叽怎么干活</h2>
         <p>图纸在手机里算好。选图、裁切、对色号，都不会上传。</p>
-        <p>只有点了「变可爱」里的 AI，图片才会先存到腾讯云，再交给 Kie 改图。</p>
+        {import.meta.env.VITE_AI !== '0' && <p>只有点了风格化里的 AI，图片才会先存到腾讯云，再交给 Kie 改图。</p>}
         <p>去背景用边缘识色，不下载大模型。色号来自公开色卡，屏幕颜色和实物会有一点差别。</p>
         <button className="btn btn-primary btn-block" onClick={onClose}>
           知道啦
@@ -276,11 +276,8 @@ export function ListSheet({
         </div>
         <p className="num list-total">共 {stats.total} 颗</p>
         <div className="export-row">
-          <button className="btn btn-small" onClick={() => downloadPng(pack())}>
+          <button className="btn btn-small" onClick={() => void downloadSheetPng(pack())}>
             PNG 图纸
-          </button>
-          <button className="btn btn-small btn-ghost" onClick={() => downloadSvg(pack())}>
-            SVG
           </button>
           <button className="btn btn-small btn-ghost" onClick={() => downloadCsv(pack())}>
             CSV 清单

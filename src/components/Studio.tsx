@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getSystem, getVariant } from '../data/palettes';
 import { deltaE2, hexToRgb, rgbToLab, textOn, toBead } from '../lib/color';
-import { downloadCsv, downloadSvg, type ListOptions, type PatternExport } from '../lib/export';
+import { downloadCsv, downloadSheetPng, type ListOptions, type PatternExport } from '../lib/export';
 import { AXIS, cellAt, drawRuler, fitBoard, scaleAround, slideBoard, type BoardView } from '../lib/gridBoard';
 import { replaceColor, summarize } from '../lib/process';
 import type { Project, Swatch, Tool } from '../types';
@@ -35,7 +35,7 @@ export function Studio(props: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [paper, setPaper] = useState({ grid: true, axis: true, code: true, legend: true, block: 0 as 0 | 5 | 10 });
   const [listOpts, setListOpts] = useState<ListOptions>({ group: true, hex: true, sort: 'count' });
-  const [exportKind, setExportKind] = useState<'svg' | 'list'>('svg');
+  const [exportKind, setExportKind] = useState<'png' | 'list'>('png');
   const [pieceName, setPieceName] = useState(project.name ?? '');
   const [viewOpen, setViewOpen] = useState(false);
   const [show, setShow] = useState({ grid: true, axis: true, block: 0 as 0 | 5 | 10, code: true });
@@ -495,7 +495,7 @@ export function Studio(props: Props) {
           className="studio-act studio-act-go"
           onClick={() => {
             setPaper({ grid: show.grid, axis: show.axis, code: show.code, legend: true, block: show.block });
-            setExportKind('svg');
+            setExportKind('png');
             setExportOpen(true);
           }}
         >
@@ -612,8 +612,8 @@ export function Studio(props: Props) {
               </button>
             </div>
             <div className="seg export-switch" role="tablist">
-              <button type="button" className={exportKind === 'svg' ? 'on' : ''} onClick={() => setExportKind('svg')}>
-                图纸 SVG
+              <button type="button" className={exportKind === 'png' ? 'on' : ''} onClick={() => setExportKind('png')}>
+                图纸 PNG
               </button>
               <button type="button" className={exportKind === 'list' ? 'on' : ''} onClick={() => setExportKind('list')}>
                 采购清单
@@ -634,7 +634,7 @@ export function Studio(props: Props) {
                 onBlur={() => props.onEdited()}
               />
             </label>
-            {exportKind === 'svg' ? (
+            {exportKind === 'png' ? (
             <section className="export-block">
               <label className="field">
                 <span>格子线</span>
@@ -671,8 +671,8 @@ export function Studio(props: Props) {
                   </button>
                 </span>
               </label>
-              <button className="btn btn-primary btn-block" onClick={() => downloadSvg(pack())}>
-                下载图纸 SVG
+              <button className="btn btn-primary btn-block" onClick={() => void downloadSheetPng(pack())}>
+                下载图纸 PNG
               </button>
             </section>
             ) : (

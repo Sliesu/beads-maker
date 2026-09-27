@@ -29,8 +29,11 @@ type Props = {
   onNext: () => void;
 };
 
+const aiEnabled = import.meta.env.VITE_AI !== '0';
+
 export function Prep(props: Props) {
   const { treat } = props;
+  const styleOn = aiEnabled && treat === 'style';
   const [styleId, setStyleId] = useState<Preset['id'] | null>(null);
   const [pixelHelp, setPixelHelp] = useState(false);
   const aspect = ASPECTS.find((item) => item.id === props.aspectId)?.value ?? null;
@@ -54,7 +57,7 @@ export function Prep(props: Props) {
           crop={props.crop}
           aspect={aspect}
           generating={props.generating}
-          sharp={props.treat === 'style' && props.styled}
+          sharp={styleOn && props.styled}
           onChange={props.onCrop}
         />
         <p className="hint">拖动方框，拉角可以改大小</p>
@@ -69,6 +72,7 @@ export function Prep(props: Props) {
             </button>
           ))}
         </div>
+        {aiEnabled && (
         <div className="mode-row">
           <button
             className={treat === 'direct' ? 'mode-card on' : 'mode-card'}
@@ -87,7 +91,8 @@ export function Prep(props: Props) {
             <span>AI 改图</span>
           </button>
         </div>
-        {treat === 'style' && (
+        )}
+        {styleOn && (
           <div className="chip-row scroll style-row">
             {AI_PRESETS.map((item) => (
               <button
@@ -102,7 +107,7 @@ export function Prep(props: Props) {
             ))}
           </div>
         )}
-        {treat === 'style' && (
+        {styleOn && (
           <>
             <div className="gen-size-block">
               <p className="hint">生成画质</p>
@@ -142,7 +147,7 @@ export function Prep(props: Props) {
             </div>
           </>
         )}
-        {treat !== 'style' && (
+        {!styleOn && (
           <div className="inline-actions">
             <label className="check-line">
               <input
@@ -162,7 +167,7 @@ export function Prep(props: Props) {
         )}
       </div>
       <div className="screen-foot">
-        {treat === 'style' ? (
+        {styleOn ? (
           <>
             {props.styled ? (
               <div className="foot-split">

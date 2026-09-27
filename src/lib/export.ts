@@ -132,7 +132,7 @@ function majorLines(ox: number, oy: number, cols: number, rows: number, cell: nu
   return d.join('');
 }
 
-export function downloadSvg(opts: PatternExport) {
+function buildSheet(opts: PatternExport) {
   const { cells, cols, rows, palette, cell, showCode, showGrid, showLegend } = opts;
   const showAxis = opts.showAxis ?? false;
   const block = opts.block ?? 0;
@@ -238,7 +238,31 @@ export function downloadSvg(opts: PatternExport) {
     `</a>`,
   );
   parts.push('</svg>');
-  download(new Blob([parts.join('')], { type: 'image/svg+xml' }), `${heading}.svg`);
+  return { svg: parts.join(''), width, height, heading };
+}
+
+export async function downloadSheetPng(opts: PatternExport) {
+  const { svg, width, height, heading } = buildSheet(opts);
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('图纸没能画出来'));
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('导出失败');
+    ctx.drawImage(img, 0, 0, width, height);
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!png) throw new Error('导出失败');
+    download(png, `${heading}.png`);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function downloadCsv(opts: PatternExport, list: ListOptions = { group: false, hex: true, sort: 'count' }, groupOf?: Map<string, string>, order: string[] = []) {

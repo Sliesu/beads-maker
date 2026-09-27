@@ -30,6 +30,7 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /beads-maker/
+          VITE_AI: "0"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
