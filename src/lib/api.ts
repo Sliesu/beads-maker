@@ -3,11 +3,19 @@ export const CUTOUT_PROMPT =
 
 export const AI_PRESETS = [
   {
-    id: 'comic',
-    label: '像素漫画',
-    preview: '/styles/px-comic.png',
+    id: 'toon',
+    label: '像素卡通',
+    preview: '/styles/px-toon2.png',
     prompt:
-      'Redraw the main subject as chunky pixel manga, not a smooth illustration. Use large visible square pixels, thick black pixel outlines, flat orange-and-cream cel colors, and a few blocky shadow pixels. Simplify fine detail so it can be built with perler beads. White background. No speech bubbles, no text, no watermark.',
+      'Redraw the main subject as a very simple cute cartoon for perler beads. Use huge square pixels and only a few flat colors: orange, cream, black, and pink blush. Thick black outline, big eyes made of a few squares. No gray shading, no gradients, no tiny detail. White background. No text, no watermark.',
+  },
+
+  {
+    id: 'voxel',
+    label: '像素写实',
+    preview: '/styles/px-iso.png',
+    prompt:
+      'Redraw the main subject as flat 2D pixel art that only imitates 3D, so it can be built with perler beads. It must be one flat sprite, not a 3D model and not real cubes. Use a three-quarter view and two or three flat shades, lighter on top and darker along the right and bottom, to suggest thickness. Hard square pixels on a 128 by 128 grid, white background, no perspective, no drop shadow, no extruded blocks. No text, no watermark.',
   },
   {
     id: 'flat',
@@ -15,7 +23,14 @@ export const AI_PRESETS = [
     preview: '/styles/px-flat.png',
     prompt:
       'Redraw the main subject as simple flat pixel art with a clear black pixel outline around the whole shape. Use only a few flat colors, large square pixels, and almost no interior detail. White background. Must stay pixelated and easy to build with perler beads. No text, no watermark.',
-  },
+  }, 
+  {
+    id: 'comic',
+    label: '红白机',
+    preview: '/styles/px-comic2.png',
+    prompt:
+      'Redraw the main subject as a very simple pixel manga for perler beads. Huge square pixels, flat orange and cream only, thick black outline, and simple black square eyes. No iris detail, no toes, no gradients, no shading. White background. No speech bubbles, no text, no watermark.',
+  }, 
   {
     id: 'minimal',
     label: '抽象简约',
@@ -24,34 +39,35 @@ export const AI_PRESETS = [
       'Redraw the main subject as an ultra-simple abstract icon of huge geometric color blocks. No outline stroke, no curves, no texture, no gradients. A few solid rectangles only, like a blocky pixel mascot, on a white background. Easy to build with perler beads. No text, no watermark.',
   },
   {
-    id: 'toon',
-    label: '像素卡通',
-    preview: '/styles/px-toon.png',
-    prompt:
-      'Redraw the main subject as a cute cartoon pixel character: oversized round head, enormous sparkling black pixel eyes, tiny body, pink blush squares, and a thick black pixel outline. Chunky square pixels on a white background. Drop fine detail for perler beads. No text, no watermark.',
-  },
-  {
-    id: 'abstract',
-    label: '梵高星空',
-    preview: '/styles/px-vangogh.png',
-    prompt:
-      'Redraw the main subject as chunky pixel art imitating Van Gogh, especially The Starry Night. Use swirling bands of large square pixels in deep blue and cyan, with yellow pixel stars. Do not make a smooth oil painting and do not use geometric Bauhaus shapes. Keep the subject readable and simplified for perler beads. No text, no watermark.',
-  },
-  {
-    id: 'cyber',
-    label: '赛博朋克',
-    preview: '/styles/px-cyber.png',
-    prompt:
-      'Redraw the main subject as cyberpunk pixel art on a flat dark navy background. Use neon magenta, cyan, and yellow square pixels, thick pixel edges, and a few simple circuit lines. No natural colors, no white background, no fine detail. Suitable for perler beads. No text, no watermark.',
-  },
-  {
     id: 'doodle',
     label: '简笔画',
     preview: '/styles/px-doodle.png',
     prompt:
       'Redraw the main subject as a minimal pixel doodle on pure white. Use only thick black square-pixel strokes, no color fills, lots of empty space, like a simple stick drawing. Must stay pixelated, not smooth pen lines. No text, no watermark.',
   },
+
+
+  {
+    id: 'abstract',
+    label: '梵高星空',
+    preview: '/styles/px-star.png',
+    prompt:
+      'Redraw the main subject as a very simple perler-bead version of Van Gogh Starry Night. Use huge square pixels and only a few flat colors: dark blue, medium blue, yellow, and the subject color. A few thick swirl bands and big yellow stars. No fine dithering, no tiny pixels, no smooth painting. No text, no watermark.',
+  },
+  {
+    id: 'photo',
+    label: '像素画',
+    preview: '/styles/px-scene128.png',
+    prompt:
+      'Redraw the whole picture as flat 2D pixel art on a 128 by 128 grid of hard square pixels. Keep the original background. Do not use huge icon blocks, do not make it 3D, and do not add soft lighting or gradients. The subject and the scenery should both stay readable. Do not cut the subject out and do not replace the background with white. No text, no watermark.',
+  },
+
+
 ] as const;
+
+export function keepsBackground(id: (typeof AI_PRESETS)[number]['id']) {
+  return id === 'abstract' || id === 'photo';
+}
 
 async function readError(res: Response) {
   try {

@@ -7,7 +7,7 @@ import { Prep } from './components/Prep';
 import { Setup } from './components/Setup';
 import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
-import { aiEdit, CUTOUT_PROMPT, mediaProxy, uploadImage } from './lib/api';
+import { aiEdit, CUTOUT_PROMPT, keepsBackground, mediaProxy, uploadImage } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
@@ -261,7 +261,17 @@ export function App() {
                 try {
                   const blob = await blobForUpload(working, crop);
                   const url = await uploadImage(blob);
-                  const result = await aiEdit(url, preset.prompt);
+                  let result = await aiEdit(url, preset.prompt);
+                  let cutoutFailed = false;
+                  if (!keepsBackground(preset.id)) {
+                    setBusy('正在去掉背景…');
+                    try {
+                      result = await aiEdit(result, CUTOUT_PROMPT);
+                    } catch (error) {
+                      cutoutFailed = true;
+                      showToast(error instanceof Error ? error.message : '背景没去掉');
+                    }
+                  }
                   const image = await loadImage(mediaProxy(result));
                   const bitmap = await createImageBitmap(image);
                   setWorking(bitmap);
@@ -269,7 +279,9 @@ export function App() {
                   setCrop(item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP);
                   setKnockout(false);
                   beforeKnockout.current = null;
-                  showToast('新图好了，可以再裁一裁');
+                  if (!cutoutFailed) {
+                    showToast(keepsBackground(preset.id) ? '新图好了，可以再裁一裁' : '新图好了，背景也去掉了');
+                  }
                 } catch (error) {
                   showToast(error instanceof Error ? error.message : 'AI 没做成');
                 } finally {

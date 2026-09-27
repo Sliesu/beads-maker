@@ -66,22 +66,26 @@ export function Prep(props: Props) {
             ))}
           </div>
         )}
-        <div className="inline-actions">
-          <label className="check-line">
-            <input
-              type="checkbox"
-              checked={props.knockout}
-              onChange={(event) => props.onKnockoutChange(event.target.checked)}
-            />
-            <span className="check-box" aria-hidden />
-            <span>{treat === 'style' ? '去掉背景' : '去掉纯色背景'}</span>
-          </label>
-          {props.canRestore && (
-            <button className="text-btn" onClick={props.onRestore}>
-              恢复原图
-            </button>
-          )}
-        </div>
+        {(treat !== 'style' || props.canRestore) && (
+          <div className="inline-actions">
+            {treat !== 'style' && (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={props.knockout}
+                  onChange={(event) => props.onKnockoutChange(event.target.checked)}
+                />
+                <span className="check-box" aria-hidden />
+                <span>去掉纯色背景</span>
+              </label>
+            )}
+            {props.canRestore && (
+              <button className="text-btn" onClick={props.onRestore}>
+                恢复原图
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="screen-foot">
         <button className="btn btn-primary btn-block" onClick={props.onNext}>
