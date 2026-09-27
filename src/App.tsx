@@ -264,7 +264,11 @@ export function App() {
                     return;
                   }
                   if (removedRatio > 0.97) {
-                    showToast('背景和主体太像了，可以切到风格化再去掉背景');
+                    showToast(
+                      import.meta.env.VITE_AI !== '0'
+                        ? '背景和主体太像了，可以切到风格化再去掉背景'
+                        : '背景和主体太像了，这块背景去不掉',
+                    );
                     return;
                   }
                   beforeKnockout.current = working;
