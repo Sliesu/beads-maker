@@ -329,10 +329,8 @@ export function App() {
         )}
         {step === 'setup' && working && (
           <Setup
-            width={working.width}
-            height={working.height}
-            cropW={crop.w}
-            cropH={crop.h}
+            image={working}
+            crop={crop}
             longSide={longSide}
             systemId={systemId}
             variantId={variantId}
@@ -340,7 +338,7 @@ export function App() {
             denoise={noise}
             enabledCount={enabledCount}
             hasProject={!!project}
-            onLongSide={(value) => setLongSide(Math.max(12, Math.min(80, value)))}
+            onLongSide={(value) => setLongSide(Math.max(12, Math.min(256, value)))}
             onSystem={(id) => {
               setSystemId(id);
               const system = getSystem(id);

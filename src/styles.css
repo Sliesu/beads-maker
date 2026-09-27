@@ -308,16 +308,22 @@ h1 {
 }
 
 .setup-body { display: flex; flex-direction: column; gap: 4px; }
-.size-hero {
-  margin: 8px 0;
-  background: var(--card);
-  border: 2.5px solid var(--line);
-  border-radius: 24px;
-  box-shadow: 4px 4px 0 var(--peach);
-  padding: 14px 16px;
+.setup-body > * { flex-shrink: 0; }
+.setup-preview {
+  height: min(42dvh, 340px);
+  margin-top: 4px;
+  position: relative;
 }
-.size-hero p { margin: 0; font-size: 40px; line-height: 1; }
-.size-hero span { color: var(--ink-soft); }
+.setup-preview canvas { width: 100%; height: 100%; display: block; }
+.stepper-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.stepper-readout strong { font-size: 22px; font-weight: 400; line-height: 1.1; }
+.stepper-readout span { color: var(--ink-soft); font-size: 13px; }
 .field-label { margin: 14px 0 0; }
 .stepper {
   margin-top: 10px;

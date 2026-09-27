@@ -1,12 +1,12 @@
+import { useEffect, useRef } from 'react';
 import { cmOf } from '../lib/color';
 import { fitGrid } from '../lib/process';
 import { SYSTEMS, getSystem } from '../data/palettes';
+import type { Crop } from '../types';
 
 type Props = {
-  width: number;
-  height: number;
-  cropW: number;
-  cropH: number;
+  image: ImageBitmap;
+  crop: Crop;
   longSide: number;
   systemId: string;
   variantId: string;
@@ -24,7 +24,7 @@ type Props = {
   onGenerate: () => void;
 };
 
-const SIZES = [24, 32, 48, 64];
+const SIZES = [32, 48, 64, 96, 128, 192, 256];
 const MERGE = [
   { id: 0, label: '关' },
   { id: 8, label: '轻' },
@@ -36,10 +36,84 @@ const NOISE = [
   { id: 2, label: '强' },
 ];
 
+function fitBox(width: number, height: number, imageW: number, imageH: number) {
+  const scale = Math.min(width / imageW, height / imageH);
+  const dw = imageW * scale;
+  const dh = imageH * scale;
+  return { ox: (width - dw) / 2, oy: (height - dh) / 2, dw, dh };
+}
+
+function round(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
 export function Setup(props: Props) {
-  const aspect = (props.width * props.cropW) / (props.height * props.cropH);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const aspect = (props.image.width * props.crop.w) / Math.max(1, props.image.height * props.crop.h);
   const grid = fitGrid(props.longSide, aspect);
   const system = getSystem(props.systemId);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const board = document.createElement('canvas');
+    const boardCtx = board.getContext('2d');
+    if (!boardCtx) return;
+
+    const draw = () => {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const sw = Math.max(1, props.crop.w * props.image.width);
+      const sh = Math.max(1, props.crop.h * props.image.height);
+      const fit = fitBox(rect.width, rect.height, sw, sh);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = '#F6E4D4';
+      round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
+      ctx.fill();
+      ctx.save();
+      round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
+      ctx.clip();
+      const tile = 12;
+      for (let y = fit.oy; y < fit.oy + fit.dh; y += tile) {
+        for (let x = fit.ox; x < fit.ox + fit.dw; x += tile) {
+          const on = (Math.floor((x - fit.ox) / tile) + Math.floor((y - fit.oy) / tile)) % 2 === 0;
+          ctx.fillStyle = on ? '#FFFFFF' : '#E8C4B4';
+          ctx.fillRect(x, y, tile, tile);
+        }
+      }
+      board.width = grid.cols;
+      board.height = grid.rows;
+      boardCtx.imageSmoothingEnabled = true;
+      boardCtx.drawImage(
+        props.image,
+        props.crop.x * props.image.width,
+        props.crop.y * props.image.height,
+        sw,
+        sh,
+        0,
+        0,
+        grid.cols,
+        grid.rows,
+      );
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(board, fit.ox, fit.oy, fit.dw, fit.dh);
+      ctx.restore();
+    };
+
+    draw();
+    const observer = new ResizeObserver(draw);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [props.image, props.crop, grid.cols, grid.rows]);
+
   return (
     <section className="screen">
       <header className="topbar">
@@ -50,15 +124,10 @@ export function Setup(props: Props) {
         <span />
       </header>
       <div className="screen-body setup-body">
-        <div className="size-hero">
-          <p className="num">
-            {grid.cols} × {grid.rows}
-          </p>
-          <span>
-            大约 {cmOf(grid.cols).toFixed(1)} × {cmOf(grid.rows).toFixed(1)} cm
-          </span>
+        <div className="setup-preview" ref={wrapRef}>
+          <canvas ref={canvasRef} />
         </div>
-        <div className="chip-row">
+        <div className="chip-row scroll">
           {SIZES.map((size) => (
             <button key={size} className={props.longSide === size ? 'chip on' : 'chip'} onClick={() => props.onLongSide(size)}>
               {size}
@@ -69,12 +138,18 @@ export function Setup(props: Props) {
           <button onClick={() => props.onLongSide(props.longSide - 2)} aria-label="少两颗">
             −
           </button>
-          <span className="num">长边 {props.longSide} 颗</span>
+          <span className="stepper-readout">
+            <strong className="num">
+              {grid.cols} × {grid.rows}
+            </strong>
+            <span>
+              大约 {cmOf(grid.cols).toFixed(1)} × {cmOf(grid.rows).toFixed(1)} cm
+            </span>
+          </span>
           <button onClick={() => props.onLongSide(props.longSide + 2)} aria-label="多两颗">
             +
           </button>
         </div>
-        <p className="hint">按 2.6mm 小豆估算，长边决定精细程度</p>
         <p className="field-label">色号</p>
         <div className="chip-row scroll">
           {SYSTEMS.map((item) => (

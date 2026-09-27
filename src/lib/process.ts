@@ -16,15 +16,15 @@ export function makePalette(colors: Swatch[], pref: Pref): Bead[] {
 }
 
 export function fitGrid(longSide: number, aspect: number) {
-  const side = Math.max(12, Math.min(80, Math.round(longSide)));
+  const side = Math.max(12, Math.min(256, Math.round(longSide)));
   const safe = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
   if (safe >= 1) {
     const cols = side;
-    const rows = Math.max(8, Math.min(80, Math.round(side / safe)));
+    const rows = Math.max(8, Math.min(256, Math.round(side / safe)));
     return { cols, rows };
   }
   const rows = side;
-  const cols = Math.max(8, Math.min(80, Math.round(side * safe)));
+  const cols = Math.max(8, Math.min(256, Math.round(side * safe)));
   return { cols, rows };
 }
 
