@@ -32,28 +32,41 @@ function read(data: Uint8ClampedArray, i: number) {
   return [data[i], data[i + 1], data[i + 2], data[i + 3]] as const;
 }
 
-export function removeBackground(src: Raster, threshold = 26) {
+function backgroundColor(data: Uint8ClampedArray, width: number, height: number) {
+  const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
+  const add = (x: number, y: number) => {
+    const o = (y * width + x) * 4;
+    if (data[o + 3] < 20) return;
+    const r = data[o];
+    const g = data[o + 1];
+    const b = data[o + 2];
+    const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    const item = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+    item.n += 1;
+    item.r += r;
+    item.g += g;
+    item.b += b;
+    buckets.set(key, item);
+  };
+  for (let x = 0; x < width; x++) {
+    add(x, 0);
+    if (height > 1) add(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    add(0, y);
+    if (width > 1) add(width - 1, y);
+  }
+  let best: { n: number; r: number; g: number; b: number } | null = null;
+  for (const item of buckets.values()) if (!best || item.n > best.n) best = item;
+  if (!best || best.n === 0) return rgbToLab(255, 255, 255);
+  return rgbToLab(best.r / best.n, best.g / best.n, best.b / best.n);
+}
+
+export function removeBackground(src: Raster, threshold = 14) {
   const { data, width, height } = src;
   const out = new Uint8ClampedArray(data);
-  const samples: number[][] = [];
-  const stepX = Math.max(1, Math.floor(width / 20));
-  const stepY = Math.max(1, Math.floor(height / 20));
-  for (let x = 0; x < width; x += stepX) {
-    samples.push([out[x * 4], out[x * 4 + 1], out[x * 4 + 2]]);
-    const b = ((height - 1) * width + x) * 4;
-    samples.push([out[b], out[b + 1], out[b + 2]]);
-  }
-  for (let y = 0; y < height; y += stepY) {
-    const l = y * width * 4;
-    const r = (y * width + width - 1) * 4;
-    samples.push([out[l], out[l + 1], out[l + 2]]);
-    samples.push([out[r], out[r + 1], out[r + 2]]);
-  }
-  const med = (ch: number) => {
-    const arr = samples.map((p) => p[ch]).sort((a, b) => a - b);
-    return arr[arr.length >> 1] ?? 255;
-  };
-  const bgLab = rgbToLab(med(0), med(1), med(2));
+  const bgLab = backgroundColor(data, width, height);
+  const bgChroma = Math.hypot(bgLab[1], bgLab[2]);
   const n = width * height;
   const seen = new Uint8Array(n);
   const qx = new Int32Array(n);
@@ -70,6 +83,7 @@ export function removeBackground(src: Raster, threshold = 26) {
     if (out[o + 3] < 20) return;
     const lab = rgbToLab(out[o], out[o + 1], out[o + 2]);
     if (Math.sqrt(deltaE2(lab, bgLab)) > threshold) return;
+    if (Math.hypot(lab[1], lab[2]) > bgChroma + 8) return;
     qx[qe] = x;
     qy[qe] = y;
     qe++;

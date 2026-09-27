@@ -204,7 +204,8 @@ h1 {
   height: 80px;
   object-fit: cover;
   border-radius: 10px;
-  background: #fff8f0;
+  background: #fff;
+  image-rendering: pixelated;
 }
 .style-card span { font-size: 13px; line-height: 1.2; }
 .style-card.on { background: var(--butter); box-shadow: 2px 2px 0 var(--line); }
