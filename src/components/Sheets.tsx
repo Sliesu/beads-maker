@@ -102,17 +102,11 @@ export function ColorPickSheet({
 export function PaletteEditor({
   systemId,
   variantId,
-  canRematch,
   onClose,
-  onChanged,
-  onRematch,
 }: {
   systemId: string;
   variantId: string;
-  canRematch: boolean;
   onClose: () => void;
-  onChanged: () => void;
-  onRematch: () => void;
 }) {
   const variant = getVariant(systemId, variantId);
   const [pref, setPref] = useState<Pref>(() => loadPref(systemId, variantId));
@@ -124,7 +118,6 @@ export function PaletteEditor({
   const update = (next: Pref) => {
     setPref(next);
     savePref(systemId, variantId, next);
-    onChanged();
   };
 
   const colors = useMemo(
@@ -188,14 +181,55 @@ export function PaletteEditor({
             ))}
           </div>
         )}
-        <div className="pair sticky-actions">
-          <button className="btn btn-ghost" onClick={() => update({ disabled: [], custom: pref.custom })}>
-            恢复全部
+      </div>
+    </div>
+  );
+}
+
+export function UsedColorsSheet({
+  colors,
+  onClose,
+}: {
+  colors: { code: string; hex: string; group: string }[] | null;
+  onClose: () => void;
+}) {
+  const groups: string[] = [];
+  for (const item of colors ?? []) if (!groups.includes(item.group)) groups.push(item.group);
+  return (
+    <div className="backdrop" onClick={onClose}>
+      <div className="sheet used-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="sheet-head">
+          <h2>用到的颜色</h2>
+          <button className="text-btn" onClick={onClose}>
+            完成
           </button>
-          {canRematch && (
-            <button className="btn btn-primary" onClick={onRematch}>
-              按这个色板重算
-            </button>
+        </div>
+        <div className="used-body">
+          {colors === null ? (
+            <p className="hint left">正在统计用到的颜色</p>
+          ) : colors.length === 0 ? (
+            <p className="hint left">这张图还没对上颜色</p>
+          ) : (
+            groups.map((group) => {
+              const beads = colors.filter((item) => item.group === group);
+              return (
+                <section key={group} className="swatch-section" data-group={group}>
+                  <header>
+                    <b>{group}</b>
+                    <span>{beads.length} 色</span>
+                  </header>
+                  <div className="swatch-beads">
+                    {beads.map((item) => (
+                      <div key={item.code} className="swatch-cell">
+                        <i style={{ background: item.hex }} />
+                        <span>{item.code}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })
           )}
         </div>
       </div>

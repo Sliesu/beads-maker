@@ -602,6 +602,21 @@ h1 {
   margin: 4px auto 8px;
 }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.used-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.used-sheet .sheet-head { flex: none; }
+.used-sheet .sheet-head h2 { margin: 4px 0 8px; }
+.used-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 -16px;
+  padding: 4px 16px calc(16px + env(safe-area-inset-bottom));
+}
 .search, .custom-row input[type="text"] {
   width: 100%;
   border: 2px solid var(--line);

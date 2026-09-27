@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { getVariant, SYSTEMS, getSystem } from '../data/palettes';
 import { cmOf } from '../lib/color';
-import { fitGrid } from '../lib/process';
-import { SYSTEMS, getSystem } from '../data/palettes';
-import type { Crop } from '../types';
+import { rasterFromBitmap } from '../lib/image';
+import { fitGrid, generatePattern, makePalette, summarize } from '../lib/process';
+import { loadPref } from '../lib/storage';
+import type { Crop, Swatch } from '../types';
+import { UsedColorsSheet } from './Sheets';
 import { SwatchBook } from './SwatchBook';
 
 type Props = {
@@ -13,14 +16,12 @@ type Props = {
   variantId: string;
   merge: number;
   denoise: number;
-  enabledCount: number;
   hasProject: boolean;
   onLongSide: (value: number) => void;
   onSystem: (id: string) => void;
   onVariant: (id: string) => void;
   onMerge: (value: number) => void;
   onDenoise: (value: number) => void;
-  onPalette: () => void;
   onBack: () => void;
   onGenerate: () => void;
 };
@@ -51,11 +52,45 @@ function round(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 
 export function Setup(props: Props) {
   const [book, setBook] = useState(false);
+  const [usedOpen, setUsedOpen] = useState(false);
+  const [used, setUsed] = useState<Swatch[] | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const aspect = (props.image.width * props.crop.w) / Math.max(1, props.image.height * props.crop.h);
   const grid = fitGrid(props.longSide, aspect);
   const system = getSystem(props.systemId);
+
+  useEffect(() => {
+    let cancel = false;
+    const timer = window.setTimeout(() => {
+      const variant = getVariant(props.systemId, props.variantId);
+      const palette = makePalette(variant.colors, loadPref(props.systemId, variant.id));
+      if (palette.length < 2) {
+        if (!cancel) setUsed([]);
+        return;
+      }
+      const aspect = (props.image.width * props.crop.w) / Math.max(1, props.image.height * props.crop.h);
+      const { cols, rows } = fitGrid(props.longSide, aspect);
+      const raster = rasterFromBitmap(props.image, props.crop, 720);
+      const cells = generatePattern(raster, palette, {
+        cols,
+        rows,
+        pooling: 'average',
+        mergeDelta: props.merge,
+        denoise: props.denoise,
+      });
+      const order = new Map(variant.colors.map((item, index) => [item.code, index]));
+      const byCode = new Map(variant.colors.map((item) => [item.code, item]));
+      const list = summarize(cells, palette).items
+        .map((item) => byCode.get(item.bead.code) ?? { code: item.bead.code, hex: item.bead.hex, group: '自定义' })
+        .sort((a, b) => (order.get(a.code) ?? 9999) - (order.get(b.code) ?? 9999) || a.code.localeCompare(b.code, 'en'));
+      if (!cancel) setUsed(list);
+    }, 60);
+    return () => {
+      cancel = true;
+      window.clearTimeout(timer);
+    };
+  }, [props.image, props.crop, props.longSide, props.systemId, props.variantId, props.merge, props.denoise]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -176,8 +211,8 @@ export function Setup(props: Props) {
             ))}
           </div>
         )}
-        <button className="text-btn left" onClick={props.onPalette}>
-          调整色板 · 可用 {props.enabledCount} 色
+        <button className="text-btn left" onClick={() => setUsedOpen(true)}>
+          共使用到 {used ? used.length : '…'} 色
         </button>
         <label className="field">
           <span>相近色合并</span>
@@ -206,6 +241,7 @@ export function Setup(props: Props) {
         </button>
       </div>
       {book && <SwatchBook systemId={props.systemId} variantId={props.variantId} onBack={() => setBook(false)} />}
+      {usedOpen && <UsedColorsSheet colors={used} onClose={() => setUsedOpen(false)} />}
     </section>
   );
 }

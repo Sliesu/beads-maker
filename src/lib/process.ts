@@ -309,56 +309,191 @@ export function generatePattern(
   return cells;
 }
 
-export function snapToGrid(src: Raster, cols: number, rows: number, cell: number): Raster {
-  const width = cols * cell;
-  const height = rows * cell;
-  const out = new Uint8ClampedArray(width * height * 4);
-  const bins = new Map<number, { n: number; r: number; g: number; b: number }>();
+export function pixelColorCount(longSide: number) {
+  if (longSide <= 32) return 6;
+  if (longSide <= 48) return 8;
+  if (longSide <= 64) return 10;
+  if (longSide <= 96) return 14;
+  if (longSide <= 128) return 18;
+  if (longSide <= 192) return 24;
+  return 32;
+}
+
+type Rgb = { r: number; g: number; b: number };
+
+export function toPixelArt(src: Raster, cols: number, rows: number, cell: number, colors: number): Raster {
+  const sampled = sampleGrid(src, cols, rows);
+  const palette = medianCut(
+    sampled.filter((item) => !item.empty),
+    Math.max(1, colors),
+  );
+  const index = new Int16Array(cols * rows);
+  index.fill(-1);
+  for (let i = 0; i < sampled.length; i++) {
+    const item = sampled[i];
+    if (!item.empty) index[i] = nearestColor(palette, item.r, item.g, item.b);
+  }
+  tidyPixels(index, cols, rows);
+  return paintBlocks(index, palette, cols, rows, cell);
+}
+
+function sampleGrid(src: Raster, cols: number, rows: number) {
+  const cells: (Rgb & { empty: boolean })[] = [];
   for (let gy = 0; gy < rows; gy++) {
     const y0 = Math.floor((gy * src.height) / rows);
     const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * src.height) / rows));
-    const iy = y1 - y0 >= 6 ? Math.floor((y1 - y0) / 6) : 0;
+    const padY = y1 - y0 >= 4 ? Math.floor((y1 - y0) * 0.22) : 0;
     for (let gx = 0; gx < cols; gx++) {
       const x0 = Math.floor((gx * src.width) / cols);
       const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * src.width) / cols));
-      const ix = x1 - x0 >= 6 ? Math.floor((x1 - x0) / 6) : 0;
-      bins.clear();
-      for (let y = y0 + iy; y < y1 - iy; y++) {
-        for (let x = x0 + ix; x < x1 - ix; x++) {
+      const padX = x1 - x0 >= 4 ? Math.floor((x1 - x0) * 0.22) : 0;
+      let total = 0;
+      let opaque = 0;
+      let ir = 0;
+      let ig = 0;
+      let ib = 0;
+      let inner = 0;
+      let ar = 0;
+      let ag = 0;
+      let ab = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          total++;
           const o = (y * src.width + x) * 4;
+          if (src.data[o + 3] < 128) continue;
+          opaque++;
           const r = src.data[o];
           const g = src.data[o + 1];
           const b = src.data[o + 2];
-          const key = src.data[o + 3] < 128 ? -1 : ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-          const bin = bins.get(key);
-          if (bin) {
-            bin.n++;
-            bin.r += r;
-            bin.g += g;
-            bin.b += b;
-          } else bins.set(key, { n: 1, r, g, b });
+          ar += r;
+          ag += g;
+          ab += b;
+          if (y < y0 + padY || y >= y1 - padY || x < x0 + padX || x >= x1 - padX) continue;
+          ir += r;
+          ig += g;
+          ib += b;
+          inner++;
         }
       }
-      let bestKey = -1;
-      let best = { n: 0, r: 0, g: 0, b: 0 };
-      for (const [key, bin] of bins) {
-        if (bin.n > best.n) {
-          best = bin;
-          bestKey = key;
-        }
+      if (!opaque || opaque / total < 0.45) {
+        cells.push({ r: 0, g: 0, b: 0, empty: true });
+        continue;
       }
-      const n = Math.max(1, best.n);
-      const r = Math.round(best.r / n);
-      const g = Math.round(best.g / n);
-      const b = Math.round(best.b / n);
-      const a = bestKey === -1 ? 0 : 255;
+      const n = inner || opaque;
+      const sr = inner ? ir : ar;
+      const sg = inner ? ig : ag;
+      const sb = inner ? ib : ab;
+      cells.push({ r: sr / n, g: sg / n, b: sb / n, empty: false });
+    }
+  }
+  return cells;
+}
+
+function medianCut(samples: Rgb[], maxColors: number) {
+  const boxes = samples.length ? [samples] : [];
+  while (boxes.length && boxes.length < maxColors) {
+    let pick = -1;
+    let range = 28;
+    let channel = 0;
+    for (let i = 0; i < boxes.length; i++) {
+      const box = boxes[i];
+      if (box.length < 2) continue;
+      const span = channelSpan(box);
+      if (span.range > range) {
+        pick = i;
+        range = span.range;
+        channel = span.channel;
+      }
+    }
+    if (pick < 0) break;
+    const box = boxes[pick];
+    const key = channel === 0 ? (item: Rgb) => item.r : channel === 1 ? (item: Rgb) => item.g : (item: Rgb) => item.b;
+    box.sort((a, b) => key(a) - key(b));
+    const mid = Math.floor(box.length / 2);
+    boxes.splice(pick, 1, box.slice(0, mid), box.slice(mid));
+  }
+  return boxes.map((box) => {
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    for (const item of box) {
+      r += item.r;
+      g += item.g;
+      b += item.b;
+    }
+    const n = box.length;
+    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
+  });
+}
+
+function channelSpan(box: Rgb[]) {
+  let r0 = 255;
+  let r1 = 0;
+  let g0 = 255;
+  let g1 = 0;
+  let b0 = 255;
+  let b1 = 0;
+  for (const item of box) {
+    r0 = Math.min(r0, item.r);
+    r1 = Math.max(r1, item.r);
+    g0 = Math.min(g0, item.g);
+    g1 = Math.max(g1, item.g);
+    b0 = Math.min(b0, item.b);
+    b1 = Math.max(b1, item.b);
+  }
+  const ranges = [r1 - r0, g1 - g0, b1 - b0];
+  let channel = 0;
+  if (ranges[1] > ranges[channel]) channel = 1;
+  if (ranges[2] > ranges[channel]) channel = 2;
+  return { channel, range: ranges[channel] };
+}
+
+function nearestColor(palette: Rgb[], r: number, g: number, b: number) {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < palette.length; i++) {
+    const item = palette[i];
+    const d = (item.r - r) ** 2 + (item.g - g) ** 2 + (item.b - b) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function tidyPixels(index: Int16Array, cols: number, rows: number) {
+  const next = new Int16Array(index);
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (x === 0 || y === 0 || x === cols - 1 || y === rows - 1) continue;
+      const i = y * cols + x;
+      const c = index[i];
+      if (c < 0) continue;
+      const around = [index[i - 1], index[i + 1], index[i - cols], index[i + cols]];
+      if (around.some((item) => item === c)) continue;
+      if (around.every((item) => item === around[0])) next[i] = around[0];
+    }
+  }
+  index.set(next);
+}
+
+function paintBlocks(index: Int16Array, palette: Rgb[], cols: number, rows: number, cell: number): Raster {
+  const width = cols * cell;
+  const height = rows * cell;
+  const out = new Uint8ClampedArray(width * height * 4);
+  for (let gy = 0; gy < rows; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const id = index[gy * cols + gx];
+      const color = id < 0 ? null : palette[id];
       for (let y = gy * cell; y < (gy + 1) * cell; y++) {
         for (let x = gx * cell; x < (gx + 1) * cell; x++) {
           const o = (y * width + x) * 4;
-          out[o] = r;
-          out[o + 1] = g;
-          out[o + 2] = b;
-          out[o + 3] = a;
+          if (!color) continue;
+          out[o] = color.r;
+          out[o + 1] = color.g;
+          out[o + 2] = color.b;
+          out[o + 3] = 255;
         }
       }
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AboutSheet, Confirm, ListSheet, PaletteEditor } from './components/Sheets';
 import { FocusMode } from './components/FocusMode';
 import { Home } from './components/Home';
@@ -10,7 +10,7 @@ import { getSystem, getVariant } from './data/palettes';
 import { aiEdit, keepsBackground, mediaProxy, uploadImage, withPixels } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, gridCell, loadImage, rasterFromBitmap } from './lib/image';
-import { denoise, fitGrid, generatePattern, makePalette, removeBackground, snapToGrid } from './lib/process';
+import { denoise, fitGrid, generatePattern, makePalette, pixelColorCount, removeBackground, toPixelArt } from './lib/process';
 import { hasDraft, loadDraft, loadExportSettings, loadPref, saveDraft, saveExportSettings } from './lib/storage';
 import type { Crop, Project, Treat } from './types';
 import { FULL_CROP } from './types';
@@ -54,7 +54,6 @@ export function App() {
   const [listOpen, setListOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [draftReady, setDraftReady] = useState(false);
-  const [paletteRev, setPaletteRev] = useState(0);
   const [exportSettings, setExportSettings] = useState(loadExportSettings);
   const [ask, setAsk] = useState<{ text: string; ok: string; run: () => void } | null>(null);
   const toastTimer = useRef(0);
@@ -68,13 +67,6 @@ export function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2800);
   };
-
-  const enabledCount = useMemo(() => {
-    const variant = getVariant(systemId, variantId);
-    const pref = loadPref(systemId, variant.id);
-    const disabled = new Set(pref.disabled);
-    return variant.colors.filter((item) => !disabled.has(item.code)).length + pref.custom.length;
-  }, [systemId, variantId, paletteRev]);
 
   const openBitmap = (bitmap: ImageBitmap) => {
     setOriginal(bitmap);
@@ -314,7 +306,9 @@ export function App() {
                     else raster = next;
                   }
                   const outGrid = fitGrid(pixels, fresh.width / fresh.height);
-                  const bitmap = await bitmapFromRaster(snapToGrid(raster, outGrid.cols, outGrid.rows, gridCell(outGrid)));
+                  const bitmap = await bitmapFromRaster(
+                    toPixelArt(raster, outGrid.cols, outGrid.rows, gridCell(outGrid), pixelColorCount(pixels)),
+                  );
                   setLongSide(pixels);
                   const item = ASPECTS.find((entry) => entry.id === aspectId);
                   const nextCrop = item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : FULL_CROP;
@@ -347,7 +341,6 @@ export function App() {
             variantId={variantId}
             merge={merge}
             denoise={noise}
-            enabledCount={enabledCount}
             hasProject={!!project}
             onLongSide={(value) => {
               const next = Math.max(12, Math.min(256, value));
@@ -362,7 +355,6 @@ export function App() {
             onVariant={setVariantId}
             onMerge={setMerge}
             onDenoise={setNoise}
-            onPalette={() => setPaletteOpen(true)}
             onBack={() => setStep('prep')}
             onGenerate={requestGenerate}
           />
@@ -396,17 +388,7 @@ export function App() {
         )}
         {about && <AboutSheet onClose={() => setAbout(false)} />}
         {paletteOpen && (
-          <PaletteEditor
-            systemId={systemId}
-            variantId={variantId}
-            canRematch={!!working}
-            onClose={() => setPaletteOpen(false)}
-            onChanged={() => setPaletteRev((value) => value + 1)}
-            onRematch={() => {
-              setPaletteOpen(false);
-              requestGenerate();
-            }}
-          />
+          <PaletteEditor systemId={systemId} variantId={variantId} onClose={() => setPaletteOpen(false)} />
         )}
         {listOpen && project && (
           <ListSheet

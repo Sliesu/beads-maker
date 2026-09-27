@@ -54,6 +54,7 @@ export function Prep(props: Props) {
           crop={props.crop}
           aspect={aspect}
           generating={props.generating}
+          sharp={props.treat === 'style' && props.styled}
           onChange={props.onCrop}
         />
         <p className="hint">拖动方框，拉角可以改大小</p>
@@ -196,8 +197,8 @@ export function Prep(props: Props) {
             <h2>像素度</h2>
             <p>数字越小，格子越大，图更简单，更好拼。</p>
             <p>数字越大，细节越多，后面要用的豆子也更多。</p>
-            <p>生成时会先把图切成这么多格交给 AI 参考，画完再对齐到同一套格子，一格就是一颗豆。</p>
-            <p>图纸的颗数会默认跟着它走，到下一页还可以再改。</p>
+            <p>AI 画完之后，会按这个格数重新取样，收成有限的几种纯色，再铺成边缘对齐的色块。一格一种颜色，不再是发虚的假像素。</p>
+            <p>数字越小，格子越大，颜色也越少。图纸的颗数会默认跟着它走，到下一页还可以再改。</p>
             <button className="btn btn-primary btn-block" onClick={() => setPixelHelp(false)}>
               知道啦
             </button>

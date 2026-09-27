@@ -11,6 +11,7 @@ type Props = {
   crop: Crop;
   aspect: number | null;
   generating?: boolean;
+  sharp?: boolean;
   onChange: (crop: Crop) => void;
 };
 
@@ -21,7 +22,7 @@ function fitBox(width: number, height: number, imageW: number, imageH: number) {
   return { ox: (width - dw) / 2, oy: (height - dh) / 2, dw, dh };
 }
 
-export function CropStage({ image, crop, aspect, generating = false, onChange }: Props) {
+export function CropStage({ image, crop, aspect, generating = false, sharp = false, onChange }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -57,7 +58,7 @@ export function CropStage({ image, crop, aspect, generating = false, onChange }:
           ctx.fillRect(x, y, tile, tile);
         }
       }
-      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingEnabled = !sharp;
       ctx.drawImage(image, fit.ox, fit.oy, fit.dw, fit.dh);
       ctx.restore();
       const box = screenBox(fit, cropRef.current);
@@ -154,7 +155,7 @@ export function CropStage({ image, crop, aspect, generating = false, onChange }:
       cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [image, crop, generating]);
+  }, [image, crop, generating, sharp]);
 
   const geometry = () => {
     const rect = wrapRef.current!.getBoundingClientRect();
