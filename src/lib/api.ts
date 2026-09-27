@@ -8,6 +8,7 @@ export function withPixels(prompt: string, pixels: number) {
   return `${prompt} Keep about ${pixels} beads of detail along the long side, so the picture stays ${detail}.`;
 }
 
+// 服务端 server/index.mjs 里的风格名单必须和这里一致。页面不能自己写提示词。
 export const AI_PRESETS = [
   {
     id: 'toon',
@@ -84,17 +85,17 @@ export async function uploadImage(blob: Blob) {
   return data.url;
 }
 
-export async function aiEdit(imageUrl: string, prompt: string, resolution: '1K' | '2K' = '1K') {
+export async function aiEdit(imageUrl: string, preset: string, pixels: number) {
   const res = await fetch('/api/ai/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrl, prompt, aspect_ratio: 'auto', resolution }),
+    body: JSON.stringify({ imageUrl, preset, pixels }),
   });
   if (!res.ok) throw new Error(await readError(res));
-  const created = (await res.json()) as { taskId: string };
+  const created = (await res.json()) as { taskId: string; token: string };
   for (let i = 0; i < 45; i++) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    const q = await fetch(`/api/ai/tasks/${encodeURIComponent(created.taskId)}`);
+    const q = await fetch(`/api/ai/tasks/${encodeURIComponent(created.taskId)}?token=${encodeURIComponent(created.token)}`);
     if (!q.ok) throw new Error(await readError(q));
     const info = (await q.json()) as { state: string; imageUrl?: string; failMsg?: string };
     if (info.state === 'success' && info.imageUrl) return info.imageUrl;

@@ -8,7 +8,7 @@ import { Prep } from './components/Prep';
 import { Setup } from './components/Setup';
 import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
-import { aiEdit, keepsBackground, mediaProxy, uploadImage, withPixels } from './lib/api';
+import { aiEdit, keepsBackground, mediaProxy, uploadImage } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, gridCell, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, pixelColorCount, removeBackground, toPixelArt } from './lib/process';
@@ -305,7 +305,7 @@ export function App() {
                 try {
                   const blob = await blobForUpload(base, baseCrop);
                   const url = await uploadImage(blob);
-                  const result = await aiEdit(url, withPixels(preset.prompt, pixels), '1K');
+                  const result = await aiEdit(url, preset.id, pixels);
                   const image = await loadImage(mediaProxy(result));
                   const fresh = await createImageBitmap(image);
                   let raster = rasterFromBitmap(fresh, FULL_CROP, Math.max(fresh.width, fresh.height));
