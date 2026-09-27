@@ -359,8 +359,11 @@ h1 {
   height: min(42dvh, 340px);
   margin-top: 4px;
   position: relative;
+  touch-action: none;
+  overscroll-behavior: none;
 }
-.setup-preview canvas { width: 100%; height: 100%; display: block; }
+.setup-preview canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.setup-preview canvas:active { cursor: grabbing; }
 .stepper-readout {
   display: flex;
   flex-direction: column;

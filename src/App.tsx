@@ -292,10 +292,9 @@ export function App() {
                 const baseCrop = styleCrop.current ?? crop;
                 setPainting(true);
                 try {
-                  const inputGrid = fitGrid(pixels, (baseCrop.w * base.width) / Math.max(1, baseCrop.h * base.height));
-                  const blob = await blobForUpload(base, baseCrop, inputGrid);
+                  const blob = await blobForUpload(base, baseCrop);
                   const url = await uploadImage(blob);
-                  const result = await aiEdit(url, withPixels(preset.prompt, inputGrid), '1K');
+                  const result = await aiEdit(url, withPixels(preset.prompt, pixels), '1K');
                   const image = await loadImage(mediaProxy(result));
                   const fresh = await createImageBitmap(image);
                   let raster = rasterFromBitmap(fresh, FULL_CROP, Math.max(fresh.width, fresh.height));
