@@ -29,6 +29,10 @@ export function App() {
   const [styled, setStyled] = useState(false);
   const styleBase = useRef<ImageBitmap | null>(null);
   const styleCrop = useRef<Crop | null>(null);
+  const generatedImage = useRef<ImageBitmap | null>(null);
+  const generatedCrop = useRef<Crop | null>(null);
+  const directCrop = useRef<Crop | null>(null);
+  const styleViewCrop = useRef<Crop | null>(null);
   const [aspectId, setAspectId] = useState<AspectId>('free');
   const [knockout, setKnockout] = useState(false);
   const beforeKnockout = useRef<ImageBitmap | null>(null);
@@ -82,6 +86,10 @@ export function App() {
     setPainting(false);
     styleBase.current = null;
     styleCrop.current = null;
+    generatedImage.current = null;
+    generatedCrop.current = null;
+    directCrop.current = null;
+    styleViewCrop.current = null;
     beforeKnockout.current = null;
     setStep('prep');
   };
@@ -201,7 +209,33 @@ export function App() {
             generating={painting}
             styled={styled}
             onCrop={setCrop}
-            onTreat={setTreat}
+            onTreat={(next) => {
+              if (painting || next === treat) return;
+              if (!generatedImage.current) {
+                setTreat(next);
+                return;
+              }
+              if (next === 'direct') {
+                if (!original) return;
+                styleViewCrop.current = crop;
+                setWorking(original);
+                setKnockout(false);
+                setCrop(directCrop.current ?? START_CROP);
+                setTreat('direct');
+                return;
+              }
+              directCrop.current = crop;
+              setWorking(generatedImage.current);
+              setCrop(styleViewCrop.current ?? generatedCrop.current ?? START_CROP);
+              setTreat('style');
+            }}
+            onReset={() => {
+              if (!generatedImage.current || !generatedCrop.current) return;
+              setWorking(generatedImage.current);
+              styleViewCrop.current = generatedCrop.current;
+              setCrop(generatedCrop.current);
+              setKnockout(false);
+            }}
             onAspect={(id) => {
               setAspectId(id);
               const item = ASPECTS.find((entry) => entry.id === id);
@@ -239,13 +273,12 @@ export function App() {
             }}
             onRestore={() => {
               if (!original) return;
-              setWorking(original);
               const item = ASPECTS.find((entry) => entry.id === aspectId);
-              setCrop(item?.value ? cropForAspect(original.width, original.height, item.value) : START_CROP);
+              const next = item?.value ? cropForAspect(original.width, original.height, item.value) : START_CROP;
+              directCrop.current = next;
+              setWorking(original);
+              setCrop(next);
               setKnockout(false);
-              setStyled(false);
-              styleBase.current = null;
-              styleCrop.current = null;
               beforeKnockout.current = null;
             }}
             onNote={showToast}
@@ -254,6 +287,7 @@ export function App() {
                 if (!styleBase.current) {
                   styleBase.current = working;
                   styleCrop.current = crop;
+                  directCrop.current = crop;
                 }
                 const base = styleBase.current;
                 const baseCrop = styleCrop.current ?? crop;
@@ -271,9 +305,13 @@ export function App() {
                     if (removedRatio < 0.02) cutoutNote = '新图好了，但没找到好分开的背景';
                     else bitmap = await bitmapFromRaster(next);
                   }
-                  setWorking(bitmap);
                   const item = ASPECTS.find((entry) => entry.id === aspectId);
-                  setCrop(item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP);
+                  const nextCrop = item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP;
+                  generatedImage.current = bitmap;
+                  generatedCrop.current = nextCrop;
+                  styleViewCrop.current = nextCrop;
+                  setWorking(bitmap);
+                  setCrop(nextCrop);
                   setKnockout(false);
                   beforeKnockout.current = null;
                   setStyled(true);

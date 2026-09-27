@@ -20,6 +20,7 @@ type Props = {
   onAspect: (id: AspectId) => void;
   onKnockoutChange: (on: boolean) => void;
   onRestore: () => void;
+  onReset: () => void;
   onGenerate: (preset: Preset) => void;
   onNote: (text: string) => void;
   onBack: () => void;
@@ -65,11 +66,19 @@ export function Prep(props: Props) {
           ))}
         </div>
         <div className="mode-row">
-          <button className={treat === 'direct' ? 'mode-card on' : 'mode-card'} onClick={() => props.onTreat('direct')}>
+          <button
+            className={treat === 'direct' ? 'mode-card on' : 'mode-card'}
+            disabled={props.generating}
+            onClick={() => props.onTreat('direct')}
+          >
             <b>原图</b>
             <span>直接转</span>
           </button>
-          <button className={treat === 'style' ? 'mode-card on' : 'mode-card'} onClick={() => props.onTreat('style')}>
+          <button
+            className={treat === 'style' ? 'mode-card on' : 'mode-card'}
+            disabled={props.generating}
+            onClick={() => props.onTreat('style')}
+          >
             <b>风格化</b>
             <span>AI 改图</span>
           </button>
@@ -133,7 +142,7 @@ export function Prep(props: Props) {
                 <button className="btn btn-ghost" disabled={props.generating || !preset} onClick={generate}>
                   重新生成
                 </button>
-                <button className="btn btn-ghost" disabled={props.generating} onClick={props.onRestore}>
+                <button className="btn btn-ghost" disabled={props.generating} onClick={props.onReset}>
                   重置
                 </button>
               </div>
