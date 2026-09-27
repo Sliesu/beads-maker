@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cmOf } from '../lib/color';
 import { fitGrid } from '../lib/process';
 import { SYSTEMS, getSystem } from '../data/palettes';
 import type { Crop } from '../types';
+import { SwatchBook } from './SwatchBook';
 
 type Props = {
   image: ImageBitmap;
@@ -49,6 +50,7 @@ function round(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 }
 
 export function Setup(props: Props) {
+  const [book, setBook] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const aspect = (props.image.width * props.crop.w) / Math.max(1, props.image.height * props.crop.h);
@@ -121,12 +123,15 @@ export function Setup(props: Props) {
           返回
         </button>
         <strong>尺寸和色号</strong>
-        <span />
+        <button className="text-btn" onClick={() => setBook(true)}>
+          色卡
+        </button>
       </header>
       <div className="screen-body setup-body">
         <div className="setup-preview" ref={wrapRef}>
           <canvas ref={canvasRef} />
         </div>
+        <p className="field-label">像素度</p>
         <div className="chip-row scroll">
           {SIZES.map((size) => (
             <button key={size} className={props.longSide === size ? 'chip on' : 'chip'} onClick={() => props.onLongSide(size)}>
@@ -200,6 +205,7 @@ export function Setup(props: Props) {
           {props.hasProject ? '重新生成图纸' : '生成图纸'}
         </button>
       </div>
+      {book && <SwatchBook systemId={props.systemId} variantId={props.variantId} onBack={() => setBook(false)} />}
     </section>
   );
 }

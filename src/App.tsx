@@ -283,7 +283,10 @@ export function App() {
               setKnockout(false);
               beforeKnockout.current = null;
             }}
-            onPixelSize={setPixelSize}
+            onPixelSize={(size) => {
+              setPixelSize(size);
+              setLongSide(size);
+            }}
             onNote={showToast}
             onGenerate={(preset) => {
               const pixels = pixelSize;
@@ -342,7 +345,11 @@ export function App() {
             denoise={noise}
             enabledCount={enabledCount}
             hasProject={!!project}
-            onLongSide={(value) => setLongSide(Math.max(12, Math.min(256, value)))}
+            onLongSide={(value) => {
+              const next = Math.max(12, Math.min(256, value));
+              setLongSide(next);
+              setPixelSize(next);
+            }}
             onSystem={(id) => {
               setSystemId(id);
               const system = getSystem(id);
