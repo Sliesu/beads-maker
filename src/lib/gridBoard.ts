@@ -14,6 +14,21 @@ function limitScale(scale: number, width: number, height: number, cols: number, 
   return Math.max(fit, Math.min(40, scale));
 }
 
+export function scaleAround(
+  view: BoardView,
+  cx: number,
+  cy: number,
+  factor: number,
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+): BoardView {
+  const scale = limitScale(view.scale * factor, width, height, cols, rows);
+  const k = scale / view.scale;
+  return { scale, tx: cx - (cx - view.tx) * k, ty: cy - (cy - view.ty) * k };
+}
+
 export function zoomBoard(
   view: BoardView,
   cx: number,
@@ -24,9 +39,24 @@ export function zoomBoard(
   cols: number,
   rows: number,
 ) {
-  const scale = limitScale(view.scale * factor, width, height, cols, rows);
-  const k = scale / view.scale;
-  return holdBoard({ scale, tx: cx - (cx - view.tx) * k, ty: cy - (cy - view.ty) * k }, width, height, cols, rows);
+  return holdBoard(scaleAround(view, cx, cy, factor, width, height, cols, rows), width, height, cols, rows);
+}
+
+function clampRange(value: number, a: number, b: number) {
+  const min = Math.min(a, b);
+  const max = Math.max(a, b);
+  return Math.min(max, Math.max(min, value));
+}
+
+export function slideBoard(view: BoardView, width: number, height: number, cols: number, rows: number): BoardView {
+  const gw = cols * view.scale;
+  const gh = rows * view.scale;
+  const keep = 72;
+  return {
+    scale: view.scale,
+    tx: clampRange(view.tx, AXIS + keep - gw, width - keep),
+    ty: clampRange(view.ty, AXIS + keep - gh, height - keep),
+  };
 }
 
 export function holdBoard(view: BoardView, width: number, height: number, cols: number, rows: number): BoardView {

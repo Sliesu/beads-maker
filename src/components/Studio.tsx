@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getSystem, getVariant } from '../data/palettes';
-import { textOn, toBead } from '../lib/color';
+import { deltaE2, hexToRgb, rgbToLab, textOn, toBead } from '../lib/color';
 import { downloadCsv, downloadSvg, type PatternExport } from '../lib/export';
-import { AXIS, cellAt, drawRuler, fitBoard, holdBoard, zoomBoard, type BoardView } from '../lib/gridBoard';
+import { AXIS, cellAt, drawRuler, fitBoard, scaleAround, slideBoard, type BoardView } from '../lib/gridBoard';
 import { replaceColor, summarize } from '../lib/process';
 import type { Project, Swatch, Tool } from '../types';
 import { EMPTY } from '../types';
@@ -74,7 +74,7 @@ export function Studio(props: Props) {
         viewRef.current = fitBoard(width, height, cols, rows);
         viewKey.current = key;
       } else {
-        viewRef.current = holdBoard(viewRef.current, width, height, cols, rows);
+        viewRef.current = slideBoard(viewRef.current, width, height, cols, rows);
       }
       const view = viewRef.current;
       ctx.clearRect(0, 0, width, height);
@@ -204,10 +204,10 @@ export function Studio(props: Props) {
         const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
         const mx = (a.x + b.x) / 2;
         const my = (a.y + b.y) / 2;
-        const zoomed = zoomBoard(pinch.view, pinch.mx, pinch.my, dist / pinch.dist, rect.width, rect.height, cols, rows);
+        const zoomed = scaleAround(pinch.view, pinch.mx, pinch.my, dist / pinch.dist, rect.width, rect.height, cols, rows);
         const wx = (pinch.mx - pinch.view.tx) / pinch.view.scale;
         const wy = (pinch.my - pinch.view.ty) / pinch.view.scale;
-        viewRef.current = holdBoard(
+        viewRef.current = slideBoard(
           { scale: zoomed.scale, tx: mx - wx * zoomed.scale, ty: my - wy * zoomed.scale },
           rect.width,
           rect.height,
@@ -225,9 +225,9 @@ export function Studio(props: Props) {
       if (!pan || editingRef.current) return;
       const dx = point.x - pan.x;
       const dy = point.y - pan.y;
-      if (!pan.moved && Math.hypot(dx, dy) < 10) return;
+      if (!pan.moved && Math.hypot(dx, dy) < 2) return;
       pan.moved = true;
-      viewRef.current = holdBoard(
+      viewRef.current = slideBoard(
         { scale: viewRef.current.scale, tx: pan.tx + dx, ty: pan.ty + dy },
         rect.width,
         rect.height,
@@ -256,16 +256,32 @@ export function Studio(props: Props) {
       if (!viewRef.current) return;
       event.preventDefault();
       const rect = canvas.getBoundingClientRect();
-      viewRef.current = zoomBoard(
-        viewRef.current,
-        event.clientX - rect.left,
-        event.clientY - rect.top,
-        event.deltaY < 0 ? 1.08 : 1 / 1.08,
-        rect.width,
-        rect.height,
-        cols,
-        rows,
-      );
+      if (event.ctrlKey || event.metaKey) {
+        viewRef.current = slideBoard(
+          scaleAround(
+            viewRef.current,
+            event.clientX - rect.left,
+            event.clientY - rect.top,
+            event.deltaY < 0 ? 1.08 : 1 / 1.08,
+            rect.width,
+            rect.height,
+            cols,
+            rows,
+          ),
+          rect.width,
+          rect.height,
+          cols,
+          rows,
+        );
+      } else {
+        viewRef.current = slideBoard(
+          { scale: viewRef.current.scale, tx: viewRef.current.tx - event.deltaX, ty: viewRef.current.ty - event.deltaY },
+          rect.width,
+          rect.height,
+          cols,
+          rows,
+        );
+      }
       paint();
     };
     const onDouble = (event: MouseEvent) => {
@@ -317,6 +333,18 @@ export function Studio(props: Props) {
     return { name: getSystem(project.systemId).name, colors: variant.colors, groups };
   }, [project.systemId, project.variantId]);
   const fromBead = swap ? project.palette[swap.from] : null;
+  const near = useMemo(() => {
+    if (!fromBead) return [];
+    return card.colors
+      .filter((item) => item.code !== fromBead.code)
+      .map((item) => {
+        const [r, g, b] = hexToRgb(item.hex);
+        return { item, d: deltaE2(fromBead.lab, rgbToLab(r, g, b)) };
+      })
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 10)
+      .map((entry) => entry.item);
+  }, [card.colors, fromBead]);
   const confirmSwap = () => {
     if (!swap?.pick || !fromBead) return;
     if (fromBead.code === swap.pick.code) {
@@ -469,6 +497,27 @@ export function Studio(props: Props) {
               )}
             </p>
             <div className="used-body">
+              {near.length > 0 && (
+                <section className="swatch-section">
+                  <header>
+                    <b>相近色</b>
+                    <span>{near.length} 色</span>
+                  </header>
+                  <div className="swatch-beads">
+                    {near.map((item) => (
+                      <button
+                        key={item.code}
+                        type="button"
+                        className={swap.pick?.code === item.code ? 'swatch-cell on' : 'swatch-cell'}
+                        onClick={() => setSwap({ from: swap.from, pick: item })}
+                      >
+                        <i style={{ background: item.hex }} />
+                        <span>{item.code}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               {card.groups.map((group) => {
                 const beads = card.colors.filter((item) => item.group === group);
                 return (

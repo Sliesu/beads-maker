@@ -500,21 +500,32 @@ h1 {
   text-align: center;
 }
 .replace-sheet { height: min(78dvh, 680px); }
+.replace-sheet h2 { font-size: 22px; }
 .replace-from {
   flex: none;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 8px;
-  font-size: 15px;
+  gap: 5px;
+  margin: 0 0 6px;
+  font-size: 13px;
 }
 .replace-from i {
-  width: 22px;
-  height: 22px;
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
   border: 2px solid var(--line);
 }
+.replace-sheet .swatch-section {
+  margin-top: 10px;
+  padding: 8px 8px 10px;
+  border-radius: 15px;
+}
+.replace-sheet .swatch-section b { font-size: 17px; }
+.replace-sheet .swatch-section header span { font-size: 11px; }
+.replace-sheet .swatch-beads { gap: 8px 5px; }
+.replace-sheet .swatch-cell { font-size: 10px; gap: 3px; }
+.replace-sheet .swatch-cell i { width: 39px; height: 39px; }
 .replace-from b { font-weight: 400; }
 .replace-from .quiet { color: var(--ink-soft); }
 .replace-confirm {
