@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { drawPattern } from '../lib/draw';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { getSystem, getVariant } from '../data/palettes';
+import { textOn, toBead } from '../lib/color';
+import { downloadCsv, downloadSvg, type PatternExport } from '../lib/export';
+import { AXIS, cellAt, drawRuler, fitBoard, holdBoard, zoomBoard, type BoardView } from '../lib/gridBoard';
 import { replaceColor, summarize } from '../lib/process';
-import { markTip, tipSeen } from '../lib/storage';
-import { CELL } from '../lib/view';
-import { useBoard } from '../hooks/useBoard';
-import type { Project, Tool } from '../types';
+import type { Project, Swatch, Tool } from '../types';
 import { EMPTY } from '../types';
-import { ColorPickSheet } from './Sheets';
+import { SwatchBook } from './SwatchBook';
 
 type Props = {
   project: Project;
@@ -16,316 +16,493 @@ type Props = {
   onEdited: () => void;
   onUndo: () => void;
   onBack: () => void;
-  onFocus: (index: number) => void;
-  onOpenList: () => void;
-  onOpenPalette: () => void;
 };
 
 export function Studio(props: Props) {
   const { project } = props;
-  const board = useBoard(project.cols, project.rows, props.editRev);
+  const stats = useMemo(() => summarize(project.cells, project.palette), [project, props.editRev]);
+  const [editing, setEditing] = useState(false);
   const [tool, setTool] = useState<Tool>('paint');
-  const [selected, setSelected] = useState(() => summarize(project.cells, project.palette).items[0]?.index ?? 0);
-  const [fromIndex, setFromIndex] = useState<number | null>(null);
-  const [lens, setLens] = useState<{ x: number; y: number; col: number; row: number } | null>(null);
-  const [panel, setPanel] = useState({ x: 12, y: 12 });
-  const [showTip, setShowTip] = useState(() => !tipSeen());
-  const [showAll, setShowAll] = useState(false);
-  const pushed = useRef(false);
+  const [selected, setSelected] = useState(() => stats.items[0]?.index ?? 0);
+  const [swap, setSwap] = useState<{ from: number; pick: Swatch | null } | null>(null);
+  const openSwapRef = useRef<(index: number) => void>(() => {});
+  openSwapRef.current = (index: number) => {
+    if (index < 0 || !project.palette[index]) return;
+    setSwap({ from: index, pick: null });
+  };
+  const [book, setBook] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewRef = useRef<BoardView | null>(null);
+  const viewKey = useRef('');
+  const paintRef = useRef<() => void>(() => {});
+  const editingRef = useRef(editing);
   const toolRef = useRef(tool);
   const selectedRef = useRef(selected);
-  const lensCanvas = useRef<HTMLCanvasElement>(null);
+  const pushed = useRef(false);
+  const callbacks = useRef(props);
+  callbacks.current = props;
+  editingRef.current = editing;
   toolRef.current = tool;
   selectedRef.current = selected;
 
-  const stats = useMemo(() => summarize(project.cells, project.palette), [project, props.editRev]);
-
-  board.drawRef.current = (ctx, view) => {
-    drawPattern(ctx, {
-      cells: project.cells,
-      cols: project.cols,
-      rows: project.rows,
-      palette: project.palette,
-      cell: CELL,
-      style: 'bead',
-      focus: null,
-      showCode: CELL * view.scale >= 22,
-      showGrid: false,
-    });
-  };
-
-  const paintCell = (col: number | null, row: number | null) => {
-    if (col === null || row === null) return;
-    const next = toolRef.current === 'eraser' ? EMPTY : selectedRef.current;
-    const index = row * project.cols + col;
-    if (project.cells[index] === next) return;
-    if (!pushed.current) {
-      props.onStrokeStart();
-      pushed.current = true;
-    }
-    project.cells[index] = next;
-    board.paint();
-  };
-
-  board.gestures.current = {
-    onSingleDown: (info) => {
-      if (toolRef.current === 'lens') {
-        if (info.col !== null && info.row !== null) setLens({ x: info.x, y: info.y, col: info.col, row: info.row });
-        return;
-      }
-      if (toolRef.current === 'replace') {
-        if (info.col === null || info.row === null) return;
-        const value = project.cells[info.row * project.cols + info.col];
-        setFromIndex(value >= 0 ? value : null);
-        return;
-      }
-      paintCell(info.col, info.row);
-    },
-    onSingleMove: (info) => {
-      if (toolRef.current === 'lens') {
-        if (info.col !== null && info.row !== null) setLens({ x: info.x, y: info.y, col: info.col, row: info.row });
-        return;
-      }
-      if (toolRef.current === 'replace') return;
-      paintCell(info.col, info.row);
-    },
-    onSingleUp: () => {
-      if (!pushed.current) return;
-      pushed.current = false;
-      props.onEdited();
-    },
-    onCancel: () => {
-      if (!pushed.current) return;
-      pushed.current = false;
-      props.onUndo();
-    },
-  };
-
   useEffect(() => {
-    const canvas = lensCanvas.current;
-    if (!canvas || !lens || tool !== 'lens') return;
+    const stage = stageRef.current;
+    const canvas = canvasRef.current;
+    if (!stage || !canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const size = 132;
-    const dpr = 2;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#FFFDF8';
-    ctx.fillRect(0, 0, size, size);
-    const n = 5;
-    const cell = size / n;
-    for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        const col = lens.col - 2 + x;
-        const row = lens.row - 2 + y;
-        const inside = col >= 0 && row >= 0 && col < project.cols && row < project.rows;
-        const value = inside ? project.cells[row * project.cols + col] : EMPTY;
-        const bead = value >= 0 ? project.palette[value] : undefined;
-        ctx.fillStyle = bead ? bead.hex : 'rgba(106,70,54,0.08)';
-        ctx.fillRect(x * cell, y * cell, cell, cell);
-        ctx.strokeStyle = x === 2 && y === 2 ? '#6A4636' : 'rgba(106,70,54,0.2)';
-        ctx.lineWidth = x === 2 && y === 2 ? 3 : 1;
-        ctx.strokeRect(x * cell + 1, y * cell + 1, cell - 2, cell - 2);
-        if (bead) {
-          ctx.fillStyle = '#5C4033';
-          ctx.font = '700 11px "Zen Maru Gothic", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(bead.code, x * cell + cell / 2, y * cell + cell / 2);
+    const cols = project.cols;
+    const rows = project.rows;
+
+    const paint = () => {
+      const rect = stage.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      if (width < 8 || height < 8) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const bw = Math.max(1, Math.floor(width * dpr));
+      const bh = Math.max(1, Math.floor(height * dpr));
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const key = `${cols}x${rows}`;
+      if (!viewRef.current || viewKey.current !== key) {
+        viewRef.current = fitBoard(width, height, cols, rows);
+        viewKey.current = key;
+      } else {
+        viewRef.current = holdBoard(viewRef.current, width, height, cols, rows);
+      }
+      const view = viewRef.current;
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(AXIS, AXIS, width - AXIS, height - AXIS);
+      ctx.clip();
+      ctx.fillStyle = '#F7F1EA';
+      ctx.fillRect(view.tx, view.ty, cols * view.scale, rows * view.scale);
+      const c0 = Math.max(0, Math.floor((AXIS - view.tx) / view.scale));
+      const c1 = Math.min(cols, Math.ceil((width - view.tx) / view.scale));
+      const r0 = Math.max(0, Math.floor((AXIS - view.ty) / view.scale));
+      const r1 = Math.min(rows, Math.ceil((height - view.ty) / view.scale));
+      for (let row = r0; row < r1; row++) {
+        for (let col = c0; col < c1; col++) {
+          const value = project.cells[row * cols + col] ?? EMPTY;
+          const x = view.tx + col * view.scale;
+          const y = view.ty + row * view.scale;
+          const bead = value >= 0 ? project.palette[value] : undefined;
+          if (!bead) {
+            if (view.scale >= 8) {
+              ctx.fillStyle = 'rgba(106,70,54,0.16)';
+              ctx.beginPath();
+              ctx.arc(x + view.scale / 2, y + view.scale / 2, Math.max(0.6, view.scale * 0.12), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            continue;
+          }
+          ctx.fillStyle = bead.hex;
+          ctx.fillRect(x, y, view.scale + 0.5, view.scale + 0.5);
+          if (view.scale >= 16) {
+            ctx.fillStyle = textOn(bead.hex);
+            ctx.font = `700 ${Math.max(8, Math.floor(view.scale * 0.32))}px "Zen Maru Gothic", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(bead.code, x + view.scale / 2, y + view.scale / 2);
+          }
         }
       }
-    }
-  }, [lens, tool, project, props.editRev]);
+      if (view.scale >= 3) {
+        ctx.beginPath();
+        for (let col = c0; col <= c1; col++) {
+          const x = Math.round(view.tx + col * view.scale) + 0.5;
+          ctx.moveTo(x, Math.max(AXIS, view.ty));
+          ctx.lineTo(x, Math.min(height, view.ty + rows * view.scale));
+        }
+        for (let row = r0; row <= r1; row++) {
+          const y = Math.round(view.ty + row * view.scale) + 0.5;
+          ctx.moveTo(Math.max(AXIS, view.tx), y);
+          ctx.lineTo(Math.min(width, view.tx + cols * view.scale), y);
+        }
+        ctx.strokeStyle = 'rgba(90,58,46,0.28)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+      drawRuler(ctx, view, width, height, cols, rows);
+    };
+    paintRef.current = paint;
 
-  const lensBead =
-    lens && project.cells[lens.row * project.cols + lens.col] >= 0
-      ? project.palette[project.cells[lens.row * project.cols + lens.col]]
-      : null;
-  const fromBead = fromIndex !== null ? project.palette[fromIndex] : null;
-  const target = project.palette[selected];
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pan: { x: number; y: number; tx: number; ty: number; moved: boolean } | null = null;
+    let pinch: { dist: number; view: BoardView; mx: number; my: number } | null = null;
+    let painting = false;
+    let replaceAt: { x: number; y: number } | null = null;
+    const local = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    const openReplace = (x: number, y: number) => {
+      if (!viewRef.current) return;
+      const hit = cellAt(viewRef.current, x, y, cols, rows);
+      if (!hit) return;
+      const value = project.cells[hit.row * cols + hit.col] ?? EMPTY;
+      if (value >= 0) openSwapRef.current(value);
+    };
+    const paintAt = (x: number, y: number) => {
+      if (!viewRef.current || !editingRef.current) return false;
+      if (toolRef.current !== 'paint' && toolRef.current !== 'eraser') return false;
+      const hit = cellAt(viewRef.current, x, y, cols, rows);
+      if (!hit) return false;
+      const next = toolRef.current === 'eraser' ? EMPTY : selectedRef.current;
+      const index = hit.row * cols + hit.col;
+      if (project.cells[index] === next) return true;
+      if (!pushed.current) {
+        callbacks.current.onStrokeStart();
+        pushed.current = true;
+      }
+      project.cells[index] = next;
+      paint();
+      return true;
+    };
+    const onDown = (event: PointerEvent) => {
+      canvas.setPointerCapture(event.pointerId);
+      const point = local(event);
+      pointers.set(event.pointerId, point);
+      if (pointers.size >= 2 && viewRef.current) {
+        const [a, b] = [...pointers.values()];
+        pinch = {
+          dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+          view: { ...viewRef.current },
+          mx: (a.x + b.x) / 2,
+          my: (a.y + b.y) / 2,
+        };
+        pan = null;
+        painting = false;
+        return;
+      }
+      if (editingRef.current && toolRef.current === 'replace') {
+        replaceAt = point;
+        return;
+      }
+      if (editingRef.current && (toolRef.current === 'paint' || toolRef.current === 'eraser')) {
+        painting = paintAt(point.x, point.y);
+        if (painting) return;
+      }
+      if (!viewRef.current || editingRef.current) return;
+      pan = { ...point, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!pointers.has(event.pointerId) || !viewRef.current) return;
+      const point = local(event);
+      pointers.set(event.pointerId, point);
+      const rect = canvas.getBoundingClientRect();
+      if (pointers.size >= 2 && pinch) {
+        const [a, b] = [...pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const zoomed = zoomBoard(pinch.view, pinch.mx, pinch.my, dist / pinch.dist, rect.width, rect.height, cols, rows);
+        const wx = (pinch.mx - pinch.view.tx) / pinch.view.scale;
+        const wy = (pinch.my - pinch.view.ty) / pinch.view.scale;
+        viewRef.current = holdBoard(
+          { scale: zoomed.scale, tx: mx - wx * zoomed.scale, ty: my - wy * zoomed.scale },
+          rect.width,
+          rect.height,
+          cols,
+          rows,
+        );
+        paint();
+        return;
+      }
+      if (replaceAt && Math.hypot(point.x - replaceAt.x, point.y - replaceAt.y) > 8) replaceAt = null;
+      if (painting) {
+        paintAt(point.x, point.y);
+        return;
+      }
+      if (!pan || editingRef.current) return;
+      const dx = point.x - pan.x;
+      const dy = point.y - pan.y;
+      if (!pan.moved && Math.hypot(dx, dy) < 10) return;
+      pan.moved = true;
+      viewRef.current = holdBoard(
+        { scale: viewRef.current.scale, tx: pan.tx + dx, ty: pan.ty + dy },
+        rect.width,
+        rect.height,
+        cols,
+        rows,
+      );
+      paint();
+    };
+    const finishStroke = () => {
+      if (!pushed.current) return;
+      pushed.current = false;
+      callbacks.current.onEdited();
+    };
+    const onUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (pointers.size === 0) {
+        if (replaceAt) openReplace(replaceAt.x, replaceAt.y);
+        replaceAt = null;
+        pan = null;
+        if (painting) finishStroke();
+        painting = false;
+      }
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (!viewRef.current) return;
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      viewRef.current = zoomBoard(
+        viewRef.current,
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        event.deltaY < 0 ? 1.08 : 1 / 1.08,
+        rect.width,
+        rect.height,
+        cols,
+        rows,
+      );
+      paint();
+    };
+    const onDouble = (event: MouseEvent) => {
+      if (editingRef.current) return;
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      viewRef.current = fitBoard(rect.width, rect.height, cols, rows);
+      paint();
+    };
+
+    paint();
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('dblclick', onDouble);
+    const observer = new ResizeObserver(paint);
+    observer.observe(stage);
+    return () => {
+      observer.disconnect();
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('dblclick', onDouble);
+    };
+  }, [project]);
+
+  useEffect(() => {
+    paintRef.current();
+  }, [props.editRev, editing]);
+
+  const pack = (): PatternExport => ({
+    cells: project.cells,
+    cols: project.cols,
+    rows: project.rows,
+    palette: project.palette,
+    title: project.systemLabel,
+    showCode: true,
+    showGrid: true,
+    showLegend: true,
+    cell: 18,
+  });
+  const card = useMemo(() => {
+    const variant = getVariant(project.systemId, project.variantId);
+    const groups = [...new Set(variant.colors.map((item) => item.group))];
+    return { name: getSystem(project.systemId).name, colors: variant.colors, groups };
+  }, [project.systemId, project.variantId]);
+  const fromBead = swap ? project.palette[swap.from] : null;
+  const confirmSwap = () => {
+    if (!swap?.pick || !fromBead) return;
+    if (fromBead.code === swap.pick.code) {
+      setSwap(null);
+      return;
+    }
+    let to = project.palette.findIndex((bead) => bead.code === swap.pick!.code);
+    if (to < 0) {
+      project.palette.push(toBead(swap.pick.code, swap.pick.hex));
+      to = project.palette.length - 1;
+    }
+    props.onStrokeStart();
+    replaceColor(project.cells, swap.from, to);
+    props.onEdited();
+    setSelected(to);
+    setSwap(null);
+  };
 
   return (
-    <section className="screen studio">
+    <section className={editing ? 'screen studio editing' : 'screen studio'}>
       <header className="topbar">
         <button className="text-btn" onClick={props.onBack}>
           返回
         </button>
-        <button className="count-pill num" onClick={props.onOpenList}>
+        <span className="count-pill num">
           {stats.total} 颗 · {stats.items.length} 色
-        </button>
-        <button className="text-btn" onClick={() => stats.items[0] && props.onFocus(stats.items[0].index)}>
-          专心
+        </span>
+        <button className="text-btn" onClick={() => setBook(true)}>
+          色卡
         </button>
       </header>
-      <div className="stage" ref={board.stageRef}>
-        <canvas ref={board.canvasRef} {...board.handlers} onPointerCancel={board.handlers.onPointerUp} />
-        <div className="zoom-stack">
-          <button onClick={board.zoomIn} aria-label="放大">
-            +
-          </button>
-          <button onClick={board.zoomOut} aria-label="缩小">
-            −
-          </button>
-          <button onClick={board.refit} aria-label="适配屏幕">
-            适
-          </button>
-        </div>
-        {tool === 'lens' && lens && (
-          <div className="lens" style={{ left: lens.x, top: lens.y }}>
-            <canvas ref={lensCanvas} />
-            <p>
-              {lens.row + 1} 行 {lens.col + 1} 列{lensBead ? ` · ${lensBead.code}` : ' · 空'}
-            </p>
-          </div>
-        )}
-        <div
-          className="float-palette"
-          style={{ left: panel.x, bottom: panel.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button
-            className="grip"
-            aria-label="拖动色盘"
-            onPointerDown={(event) => {
-              const parent = board.stageRef.current?.getBoundingClientRect();
-              if (!parent) return;
-              const startX = event.clientX;
-              const startY = event.clientY;
-              const origin = { ...panel };
-              const move = (ev: PointerEvent) => {
-                const maxX = Math.max(8, parent.width - 220);
-                setPanel({
-                  x: Math.max(8, Math.min(maxX, origin.x + ev.clientX - startX)),
-                  y: Math.max(8, Math.min(parent.height - 80, origin.y - (ev.clientY - startY))),
-                });
-              };
-              const up = () => {
-                window.removeEventListener('pointermove', move);
-                window.removeEventListener('pointerup', up);
-              };
-              window.addEventListener('pointermove', move);
-              window.addEventListener('pointerup', up);
-            }}
-          />
-          <div className="palette-scroll">
+      <div className="stage" ref={stageRef}>
+        <canvas ref={canvasRef} />
+      </div>
+      {editing && (
+        <div className="edit-tray">
+          <div className="edit-colors">
             {stats.items.map((item) => (
               <button
                 key={item.bead.code}
-                className={item.index === selected ? 'mini-bead on' : 'mini-bead'}
-                style={{ background: item.bead.hex }}
+                type="button"
+                className={
+                  (tool === 'replace' ? swap?.from === item.index : item.index === selected) ? 'edit-swatch on' : 'edit-swatch'
+                }
                 onClick={() => {
-                  setSelected(item.index);
-                  setTool((current) => (current === 'replace' || current === 'lens' ? current : 'paint'));
+                  if (tool === 'replace') openSwapRef.current(item.index);
+                  else setSelected(item.index);
                 }}
                 aria-label={item.bead.code}
+                aria-pressed={tool === 'replace' ? swap?.from === item.index : item.index === selected}
               >
-                <i>{item.bead.code}</i>
+                <i style={{ background: item.bead.hex }} />
+                <span>{item.bead.code}</span>
               </button>
             ))}
           </div>
-          <button className="more-colors" onClick={() => setShowAll(true)} aria-label="全部色号">
-            全部
-          </button>
+          <div className="edit-tools">
+            <button type="button" className={tool === 'paint' ? 'edit-tool on' : 'edit-tool'} onClick={() => setTool('paint')}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M14 5l5 5L8 21H3v-5L14 5z" />
+              </svg>
+              画笔
+            </button>
+            <button type="button" className={tool === 'eraser' ? 'edit-tool on' : 'edit-tool'} onClick={() => setTool('eraser')}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M16 5l3 3-9 9H7v-3L16 5z" />
+                <path d="M5 19h14" />
+              </svg>
+              橡皮
+            </button>
+            <button type="button" className={tool === 'replace' ? 'edit-tool on' : 'edit-tool'} onClick={() => setTool('replace')}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M7 7h10" />
+                <path d="M14 4l3 3-3 3" />
+                <path d="M17 17H7" />
+                <path d="M10 14l-3 3 3 3" />
+              </svg>
+              换色
+            </button>
+            <button type="button" className="edit-tool" disabled={!props.canUndo} onClick={props.onUndo}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M9 7H4v5" />
+                <path d="M4 12a8 8 0 1 0 2.5-5.5L4 8" />
+              </svg>
+              撤销
+            </button>
+          </div>
+          {tool === 'replace' && <p className="replace-line">点画布上的一格，或点上面用过的颜色</p>}
         </div>
-        {showTip && (
-          <button
-            className="tip"
-            onClick={() => {
-              markTip();
-              setShowTip(false);
-            }}
-          >
-            双指缩放，点格子改颜色
-          </button>
-        )}
+      )}
+      <div className="studio-bar">
+        <button className="studio-act" aria-pressed={editing} onClick={() => setEditing((on) => !on)}>
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M14 5l5 5L8 21H3v-5L14 5z" />
+          </svg>
+          修改
+        </button>
+        <button className="studio-act studio-act-go" onClick={() => setExportOpen(true)}>
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M12 4v10" />
+            <path d="M8 10l4 4 4-4" />
+            <path d="M5 19h14" />
+          </svg>
+          导出图纸
+        </button>
       </div>
-      {tool === 'replace' && (
-        <div className="replace-bar">
-          {fromBead && target ? (
-            <>
-              <span className="dot" style={{ background: fromBead.hex }} />
-              <span>换成</span>
-              <span className="dot" style={{ background: target.hex }} />
-              <button
-                className="btn btn-small"
-                onClick={() => {
-                  props.onStrokeStart();
-                  replaceColor(project.cells, fromIndex!, selected);
-                  setFromIndex(null);
-                  props.onEdited();
-                }}
-              >
-                全部替换
+      {exportOpen && (
+        <div className="backdrop" onClick={() => setExportOpen(false)}>
+          <div className="sheet short" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-handle" />
+            <div className="sheet-head">
+              <h2>导出图纸</h2>
+              <button className="text-btn" onClick={() => setExportOpen(false)}>
+                完成
               </button>
-            </>
-          ) : (
-            <span>点一颗想换掉的豆子</span>
-          )}
+            </div>
+            <div className="export-row">
+              <button className="btn btn-small" onClick={() => downloadSvg(pack())}>
+                图纸 SVG
+              </button>
+              <button className="btn btn-small btn-ghost" onClick={() => downloadCsv(pack())}>
+                采购清单
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      <div className="dock">
-        <ToolButton name="画笔" active={tool === 'paint'} onClick={() => setTool('paint')}>
-          <path d="M14 5l5 5L8 21H3v-5L14 5z" />
-        </ToolButton>
-        <ToolButton name="橡皮" active={tool === 'eraser'} onClick={() => setTool('eraser')}>
-          <path d="M16 5l3 3-9 9H7v-3L16 5z" />
-          <path d="M5 19h14" />
-        </ToolButton>
-        <ToolButton name="换色" active={tool === 'replace'} onClick={() => setTool('replace')}>
-          <path d="M4 8h11" />
-          <path d="M12 5l3 3-3 3" />
-          <path d="M20 16H9" />
-          <path d="M12 13l-3 3 3 3" />
-        </ToolButton>
-        <ToolButton name="放大" active={tool === 'lens'} onClick={() => setTool('lens')}>
-          <circle cx="11" cy="11" r="6" />
-          <path d="M16 16l4 4" />
-        </ToolButton>
-        <ToolButton name="撤销" active={false} disabled={!props.canUndo} onClick={props.onUndo}>
-          <path d="M9 7H4v5" />
-          <path d="M4 12a8 8 0 1 0 2.5-5.5L4 8" />
-        </ToolButton>
-      </div>
-      {showAll && (
-        <ColorPickSheet
-          palette={project.palette}
-          selected={selected}
-          onPick={(index) => {
-            setSelected(index);
-            setTool((current) => (current === 'replace' || current === 'lens' ? current : 'paint'));
-            setShowAll(false);
-          }}
-          onEdit={() => {
-            setShowAll(false);
-            props.onOpenPalette();
-          }}
-          onClose={() => setShowAll(false)}
-        />
+      {swap && fromBead && (
+        <div className="backdrop" onClick={() => setSwap(null)}>
+          <div className="sheet used-sheet replace-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-handle" />
+            <div className="sheet-head">
+              <h2>{card.name} 色卡</h2>
+              <button className="text-btn" onClick={() => setSwap(null)}>
+                取消
+              </button>
+            </div>
+            <p className="replace-from">
+              <span>把</span>
+              <i style={{ background: fromBead.hex }} />
+              <b>{fromBead.code}</b>
+              <span>全部换成</span>
+              {swap.pick ? (
+                <>
+                  <i style={{ background: swap.pick.hex }} />
+                  <b>{swap.pick.code}</b>
+                </>
+              ) : (
+                <span className="quiet">点下面一种颜色</span>
+              )}
+            </p>
+            <div className="used-body">
+              {card.groups.map((group) => {
+                const beads = card.colors.filter((item) => item.group === group);
+                return (
+                  <section key={group} className="swatch-section">
+                    <header>
+                      <b>{group}</b>
+                      <span>{beads.length} 色</span>
+                    </header>
+                    <div className="swatch-beads">
+                      {beads.map((item) => (
+                        <button
+                          key={item.code}
+                          type="button"
+                          className={swap.pick?.code === item.code ? 'swatch-cell on' : 'swatch-cell'}
+                          onClick={() => setSwap({ from: swap.from, pick: item })}
+                        >
+                          <i style={{ background: item.hex }} />
+                          <span>{item.code}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+            <div className="replace-confirm">
+              <button className="btn btn-primary btn-block" disabled={!swap.pick || swap.pick.code === fromBead.code} onClick={confirmSwap}>
+                确认替换
+              </button>
+            </div>
+          </div>
+        </div>
       )}
+      {book && <SwatchBook systemId={project.systemId} variantId={project.variantId} onBack={() => setBook(false)} />}
     </section>
-  );
-}
-
-function ToolButton({
-  name,
-  active,
-  disabled,
-  onClick,
-  children,
-}: {
-  name: string;
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button className={active ? 'tool on' : 'tool'} disabled={disabled} onClick={onClick} aria-pressed={active}>
-      <svg viewBox="0 0 24 24" aria-hidden>
-        {children}
-      </svg>
-      {name}
-    </button>
   );
 }

@@ -368,12 +368,6 @@ export function App() {
             onEdited={touch}
             onUndo={undo}
             onBack={() => setStep(working ? 'setup' : 'home')}
-            onFocus={(index) => {
-              setListOpen(false);
-              setFocusIndex(index);
-            }}
-            onOpenList={() => setListOpen(true)}
-            onOpenPalette={() => setPaletteOpen(true)}
           />
         )}
         {focusIndex !== null && project && (
