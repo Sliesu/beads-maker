@@ -9,8 +9,8 @@ import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
 import { aiEdit, keepsBackground, mediaProxy, uploadImage, withPixels } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
-import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
-import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
+import { bitmapFromRaster, blobForUpload, gridCell, loadImage, rasterFromBitmap } from './lib/image';
+import { denoise, fitGrid, generatePattern, makePalette, removeBackground, snapToGrid } from './lib/process';
 import { hasDraft, loadDraft, loadExportSettings, loadPref, saveDraft, saveExportSettings } from './lib/storage';
 import type { Crop, Project, Treat } from './types';
 import { FULL_CROP } from './types';
@@ -300,20 +300,24 @@ export function App() {
                 const baseCrop = styleCrop.current ?? crop;
                 setPainting(true);
                 try {
-                  const blob = await blobForUpload(base, baseCrop);
+                  const inputGrid = fitGrid(pixels, (baseCrop.w * base.width) / Math.max(1, baseCrop.h * base.height));
+                  const blob = await blobForUpload(base, baseCrop, inputGrid);
                   const url = await uploadImage(blob);
-                  const result = await aiEdit(url, withPixels(preset.prompt, pixels), '1K');
+                  const result = await aiEdit(url, withPixels(preset.prompt, inputGrid), '1K');
                   const image = await loadImage(mediaProxy(result));
-                  let bitmap = await createImageBitmap(image);
+                  const fresh = await createImageBitmap(image);
+                  let raster = rasterFromBitmap(fresh, FULL_CROP, Math.max(fresh.width, fresh.height));
                   let cutoutNote = keepsBackground(preset.id) ? '新图好了，可以再裁一裁' : '新图好了，背景也去掉了';
                   if (!keepsBackground(preset.id)) {
-                    const raster = rasterFromBitmap(bitmap, FULL_CROP, Math.max(bitmap.width, bitmap.height));
                     const { raster: next, removedRatio } = removeBackground(raster);
                     if (removedRatio < 0.02) cutoutNote = '新图好了，但没找到好分开的背景';
-                    else bitmap = await bitmapFromRaster(next);
+                    else raster = next;
                   }
+                  const outGrid = fitGrid(pixels, fresh.width / fresh.height);
+                  const bitmap = await bitmapFromRaster(snapToGrid(raster, outGrid.cols, outGrid.rows, gridCell(outGrid)));
+                  setLongSide(pixels);
                   const item = ASPECTS.find((entry) => entry.id === aspectId);
-                  const nextCrop = item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : START_CROP;
+                  const nextCrop = item?.value ? cropForAspect(bitmap.width, bitmap.height, item.value) : FULL_CROP;
                   generatedImage.current = bitmap;
                   generatedCrop.current = nextCrop;
                   styleViewCrop.current = nextCrop;

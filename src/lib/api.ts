@@ -6,8 +6,28 @@ const BEAD_RULES =
 
 export const PIXEL_STEPS = [32, 48, 64, 96, 128, 192, 256] as const;
 
-export function withPixels(prompt: string, pixels: number) {
-  return `${prompt} Draw it as one flat ${pixels} by ${pixels} pixel picture for perler beads. ${BEAD_RULES}`;
+const DETAIL_TIERS: { max: number; text: string }[] = [
+  { max: 32, text: 'a tiny icon: only the outer silhouette and at most two or three key features, each eye is a single cell, no inner detail, 3 to 5 colors in total' },
+  { max: 48, text: 'a small sprite: silhouette plus the main parts, eyes one or two cells, almost no inner detail, 4 to 6 colors' },
+  { max: 64, text: 'a classic game sprite: main parts and the key facial features, a little inner detail, 5 to 8 colors' },
+  { max: 96, text: 'a detailed sprite: clear parts, simple facial expression, one shade per color, 6 to 10 colors' },
+  { max: 128, text: 'a medium detail picture: recognizable features and simple patterns, one light and one dark shade per color, 8 to 12 colors' },
+  { max: 192, text: 'a high detail picture: small features, patterns and a few highlights, 10 to 16 colors' },
+  { max: 256, text: 'a rich detail picture: fine features, textures drawn as cell patterns, soft shading with a few steps, 12 to 20 colors' },
+];
+
+export function withPixels(prompt: string, grid: { cols: number; rows: number }) {
+  const long = Math.max(grid.cols, grid.rows);
+  const tier = DETAIL_TIERS.find((item) => long <= item.max) ?? DETAIL_TIERS[DETAIL_TIERS.length - 1];
+  const percent = (100 / long).toFixed(long > 100 ? 2 : 1);
+  return [
+    prompt,
+    `This is a perler bead pattern of exactly ${grid.cols} cells wide and ${grid.rows} cells tall.`,
+    `The input image is already snapped to that grid, so every square block you see is one bead.`,
+    `Keep the same block size and the same grid alignment: each block is ${percent}% of the image's long side, every shape is made of whole blocks, and nothing is smaller than one block.`,
+    `At this size the level of detail is ${tier.text}.`,
+    BEAD_RULES,
+  ].join(' ');
 }
 
 const COLORS = "Keep the subject's own colors. Do not shift the hue or add a color cast.";

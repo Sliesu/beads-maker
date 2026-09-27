@@ -77,7 +77,19 @@ export function CropStage({ image, crop, aspect, generating = false, onChange }:
       }
     };
 
-    const drawGenerating = (tick: number, board: HTMLCanvasElement, boardCtx: CanvasRenderingContext2D) => {
+    if (!generating) {
+      draw();
+      const observer = new ResizeObserver(draw);
+      observer.observe(wrap);
+      return () => observer.disconnect();
+    }
+
+    const beads = sampleBeads(image);
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const start = performance.now();
+    let frameId = 0;
+
+    const drawGenerating = (now: number) => {
       const rect = wrap.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, Math.floor(rect.width * dpr));
@@ -88,44 +100,58 @@ export function CropStage({ image, crop, aspect, generating = false, onChange }:
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const fit = fitBox(rect.width, rect.height, image.width, image.height);
-      const cols = 40;
-      const rows = Math.max(8, Math.round((cols * fit.dh) / Math.max(fit.dw, 1)));
+      const t = now - start;
+      const enter = still ? 1 : easeOut(Math.min(1, t / ENTER_MS));
+      const sweep = -SWEEP_BAND + easeInOut((t % SWEEP_MS) / SWEEP_MS) * (1 + SWEEP_BAND * 2);
+      const cw = fit.dw / beads.cols;
+      const ch = fit.dh / beads.rows;
+      const outer = Math.min(cw, ch) * 0.46;
+
       ctx.clearRect(0, 0, rect.width, rect.height);
-      ctx.fillStyle = '#F6E4D4';
-      round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
-      ctx.fill();
       ctx.save();
       round(ctx, fit.ox, fit.oy, fit.dw, fit.dh, 18);
       ctx.clip();
-      board.width = cols;
-      board.height = rows;
-      boardCtx.imageSmoothingEnabled = true;
-      boardCtx.drawImage(image, 0, 0, cols, rows);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(board, fit.ox, fit.oy, fit.dw, fit.dh);
-      const wash = 0.2 + 0.08 * Math.sin(tick / 8);
-      ctx.fillStyle = `rgba(255, 248, 240, ${wash})`;
+      ctx.fillStyle = '#FBF4EC';
       ctx.fillRect(fit.ox, fit.oy, fit.dw, fit.dh);
+
+      for (const bead of beads.list) {
+        const k = still ? 0.6 : smooth(1 - Math.abs(bead.u - sweep) / SWEEP_BAND);
+        const r = outer * (0.84 + 0.16 * k);
+        const cx = fit.ox + (bead.c + 0.5) * cw;
+        const cy = fit.oy + (bead.r + 0.5) * ch;
+        ctx.globalAlpha = (0.38 + 0.62 * k) * enter;
+        ctx.strokeStyle = bead.color;
+        ctx.lineWidth = r * 0.62;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.69, 0, Math.PI * 2);
+        ctx.stroke();
+        if (k > 0.08) {
+          ctx.globalAlpha = 0.55 * k * enter;
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = Math.max(0.8, r * 0.16);
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * 0.78, Math.PI * 1.1, Math.PI * 1.45);
+          ctx.stroke();
+        }
+      }
+
+      if (enter < 1) {
+        ctx.globalAlpha = 1 - enter;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(image, fit.ox, fit.oy, fit.dw, fit.dh);
+      }
       ctx.restore();
     };
 
-    const scratch = document.createElement('canvas');
-    const scratchCtx = scratch.getContext('2d');
-    let tick = 0;
-    let timer = 0;
-    const paint = () => {
-      if (generating && scratchCtx) drawGenerating(tick++, scratch, scratchCtx);
-      else draw();
+    const loop = (now: number) => {
+      drawGenerating(now);
+      if (!still) frameId = requestAnimationFrame(loop);
     };
-    const loop = () => {
-      paint();
-      if (generating) timer = window.setTimeout(loop, 220);
-    };
-    loop();
-    const observer = new ResizeObserver(paint);
+    frameId = requestAnimationFrame(loop);
+    const observer = new ResizeObserver(() => drawGenerating(performance.now()));
     observer.observe(wrap);
     return () => {
-      window.clearTimeout(timer);
+      cancelAnimationFrame(frameId);
       observer.disconnect();
     };
   }, [image, crop, generating]);
@@ -170,9 +196,60 @@ export function CropStage({ image, crop, aspect, generating = false, onChange }:
       }}
     >
       <canvas ref={canvasRef} />
-      {generating && <p className="gen-caption">图片创作中...</p>}
+      {generating && (
+        <p className="gen-caption">
+          图片创作中
+          <span className="gen-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </p>
+      )}
     </div>
   );
+}
+
+const BEAD_COLS = 40;
+const ENTER_MS = 700;
+const SWEEP_MS = 2600;
+const SWEEP_BAND = 0.2;
+
+function sampleBeads(image: ImageBitmap) {
+  const cols = BEAD_COLS;
+  const rows = Math.max(8, Math.round((cols * image.height) / Math.max(image.width, 1)));
+  const board = document.createElement('canvas');
+  board.width = cols;
+  board.height = rows;
+  const boardCtx = board.getContext('2d', { willReadFrequently: true });
+  const list: { c: number; r: number; u: number; color: string }[] = [];
+  if (!boardCtx) return { cols, rows, list };
+  boardCtx.imageSmoothingEnabled = true;
+  boardCtx.drawImage(image, 0, 0, cols, rows);
+  const data = boardCtx.getImageData(0, 0, cols, rows).data;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = (r * cols + c) * 4;
+      if (data[i + 3] < 24) continue;
+      const jitter = (Math.sin(c * 12.9898 + r * 78.233) * 43758.5453) % 1;
+      const u = (c / (cols - 1) + r / (rows - 1)) / 2 + jitter * 0.03;
+      list.push({ c, r, u, color: `rgb(${data[i]},${data[i + 1]},${data[i + 2]})` });
+    }
+  }
+  return { cols, rows, list };
+}
+
+function smooth(v: number) {
+  const x = Math.min(1, Math.max(0, v));
+  return x * x * (3 - 2 * x);
+}
+
+function easeOut(v: number) {
+  return 1 - (1 - v) ** 3;
+}
+
+function easeInOut(v: number) {
+  return v < 0.5 ? 4 * v * v * v : 1 - (-2 * v + 2) ** 3 / 2;
 }
 
 function screenBox(fit: { ox: number; oy: number; dw: number; dh: number }, crop: Crop) {

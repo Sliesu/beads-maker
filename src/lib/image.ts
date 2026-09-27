@@ -34,7 +34,11 @@ export async function bitmapFromRaster(raster: Raster) {
   return createImageBitmap(blob);
 }
 
-export async function blobForUpload(image: Sized, crop: Crop) {
+export function gridCell(grid: { cols: number; rows: number }) {
+  return Math.max(1, Math.floor(1024 / Math.max(grid.cols, grid.rows)));
+}
+
+export async function blobForUpload(image: Sized, crop: Crop, grid?: { cols: number; rows: number }) {
   const max = 1280;
   const sw = Math.max(1, crop.w * image.width);
   const sh = Math.max(1, crop.h * image.height);
@@ -47,7 +51,28 @@ export async function blobForUpload(image: Sized, crop: Crop) {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, crop.x * image.width, crop.y * image.height, sw, sh, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+  if (!grid) {
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+    if (!blob) throw new Error('图片导出失败');
+    return blob;
+  }
+  const small = document.createElement('canvas');
+  small.width = grid.cols;
+  small.height = grid.rows;
+  const smallCtx = small.getContext('2d');
+  if (!smallCtx) throw new Error('画布不可用');
+  smallCtx.imageSmoothingEnabled = true;
+  smallCtx.imageSmoothingQuality = 'high';
+  smallCtx.drawImage(canvas, 0, 0, grid.cols, grid.rows);
+  const cell = gridCell(grid);
+  const big = document.createElement('canvas');
+  big.width = grid.cols * cell;
+  big.height = grid.rows * cell;
+  const bigCtx = big.getContext('2d');
+  if (!bigCtx) throw new Error('画布不可用');
+  bigCtx.imageSmoothingEnabled = false;
+  bigCtx.drawImage(small, 0, 0, big.width, big.height);
+  const blob = await new Promise<Blob | null>((resolve) => big.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('图片导出失败');
   return blob;
 }

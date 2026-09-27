@@ -268,11 +268,36 @@ h1 {
   font-size: 15px;
   white-space: nowrap;
   pointer-events: none;
-  animation: gen-breathe 1.6s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 18px rgba(92, 64, 51, 0.12);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: gen-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-@keyframes gen-breathe {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.82; }
+.gen-dots { display: inline-flex; gap: 3px; }
+.gen-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: gen-dot 1.2s ease-in-out infinite;
+}
+.gen-dots i:nth-child(2) { animation-delay: 0.15s; }
+.gen-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes gen-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes gen-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gen-caption, .gen-dots i { animation: none; }
+  .gen-dots i { opacity: 0.6; }
 }
 .foot-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .foot-split .btn { width: 100%; }

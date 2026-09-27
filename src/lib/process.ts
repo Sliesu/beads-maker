@@ -309,6 +309,63 @@ export function generatePattern(
   return cells;
 }
 
+export function snapToGrid(src: Raster, cols: number, rows: number, cell: number): Raster {
+  const width = cols * cell;
+  const height = rows * cell;
+  const out = new Uint8ClampedArray(width * height * 4);
+  const bins = new Map<number, { n: number; r: number; g: number; b: number }>();
+  for (let gy = 0; gy < rows; gy++) {
+    const y0 = Math.floor((gy * src.height) / rows);
+    const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * src.height) / rows));
+    const iy = y1 - y0 >= 6 ? Math.floor((y1 - y0) / 6) : 0;
+    for (let gx = 0; gx < cols; gx++) {
+      const x0 = Math.floor((gx * src.width) / cols);
+      const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * src.width) / cols));
+      const ix = x1 - x0 >= 6 ? Math.floor((x1 - x0) / 6) : 0;
+      bins.clear();
+      for (let y = y0 + iy; y < y1 - iy; y++) {
+        for (let x = x0 + ix; x < x1 - ix; x++) {
+          const o = (y * src.width + x) * 4;
+          const r = src.data[o];
+          const g = src.data[o + 1];
+          const b = src.data[o + 2];
+          const key = src.data[o + 3] < 128 ? -1 : ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+          const bin = bins.get(key);
+          if (bin) {
+            bin.n++;
+            bin.r += r;
+            bin.g += g;
+            bin.b += b;
+          } else bins.set(key, { n: 1, r, g, b });
+        }
+      }
+      let bestKey = -1;
+      let best = { n: 0, r: 0, g: 0, b: 0 };
+      for (const [key, bin] of bins) {
+        if (bin.n > best.n) {
+          best = bin;
+          bestKey = key;
+        }
+      }
+      const n = Math.max(1, best.n);
+      const r = Math.round(best.r / n);
+      const g = Math.round(best.g / n);
+      const b = Math.round(best.b / n);
+      const a = bestKey === -1 ? 0 : 255;
+      for (let y = gy * cell; y < (gy + 1) * cell; y++) {
+        for (let x = gx * cell; x < (gx + 1) * cell; x++) {
+          const o = (y * width + x) * 4;
+          out[o] = r;
+          out[o + 1] = g;
+          out[o + 2] = b;
+          out[o + 3] = a;
+        }
+      }
+    }
+  }
+  return { data: out, width, height };
+}
+
 export type ColorStat = { index: number; count: number; bead: Bead };
 
 export function summarize(cells: Int16Array, palette: Bead[]) {
