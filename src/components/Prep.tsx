@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AI_PRESETS } from '../lib/api';
+import { AI_PRESETS, PIXEL_STEPS } from '../lib/api';
 import { ASPECTS, type AspectId } from '../lib/crop';
 import type { Crop, Treat } from '../types';
 import { CropStage } from './CropStage';
@@ -14,6 +14,7 @@ type Props = {
   knockout: boolean;
   canRestore: boolean;
   generating: boolean;
+  pixelSize: number;
   styled: boolean;
   onCrop: (crop: Crop) => void;
   onTreat: (treat: Treat) => void;
@@ -22,6 +23,7 @@ type Props = {
   onRestore: () => void;
   onReset: () => void;
   onGenerate: (preset: Preset) => void;
+  onPixelSize: (size: number) => void;
   onNote: (text: string) => void;
   onBack: () => void;
   onNext: () => void;
@@ -30,6 +32,7 @@ type Props = {
 export function Prep(props: Props) {
   const { treat } = props;
   const [styleId, setStyleId] = useState<Preset['id'] | null>(null);
+  const [pixelHelp, setPixelHelp] = useState(false);
   const aspect = ASPECTS.find((item) => item.id === props.aspectId)?.value ?? null;
   const preset = AI_PRESETS.find((item) => item.id === styleId) ?? null;
   const generate = () => {
@@ -99,21 +102,44 @@ export function Prep(props: Props) {
           </div>
         )}
         {treat === 'style' && (
-          <div className="gen-size-block">
-            <p className="hint">生成画质</p>
-            <div className="gen-size" role="group" aria-label="生成画质">
-              <button type="button" className="chip on" disabled={props.generating}>
-                1K
-              </button>
-              <button type="button" className="chip locked" onClick={() => props.onNote('2K 还没开放')}>
-                <svg className="lock-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="5" y="11" width="14" height="10" rx="2" />
-                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-                </svg>
-                2K
-              </button>
+          <>
+            <div className="gen-size-block">
+              <p className="hint">生成画质</p>
+              <div className="gen-size" role="group" aria-label="生成画质">
+                <button type="button" className="chip on" disabled={props.generating}>
+                  1K
+                </button>
+                <button type="button" className="chip locked" onClick={() => props.onNote('2K 还没开放')}>
+                  <svg className="lock-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="10" rx="2" />
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                  </svg>
+                  2K
+                </button>
+              </div>
             </div>
-          </div>
+            <div className="gen-pixel-block">
+              <p className="hint hint-line">
+                像素度
+                <button type="button" className="info-dot" aria-label="像素度说明" onClick={() => setPixelHelp(true)}>
+                  ?
+                </button>
+              </p>
+              <div className="chip-row scroll" role="group" aria-label="像素度">
+                {PIXEL_STEPS.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    className={props.pixelSize === size ? 'chip on' : 'chip'}
+                    disabled={props.generating}
+                    onClick={() => props.onPixelSize(size)}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
         {treat !== 'style' && (
           <div className="inline-actions">
@@ -163,6 +189,20 @@ export function Prep(props: Props) {
           </button>
         )}
       </div>
+      {pixelHelp && (
+        <div className="backdrop" onClick={() => setPixelHelp(false)}>
+          <div className="sheet short" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-handle" />
+            <h2>像素度</h2>
+            <p>数字越小，格子越大，图更简单，更好拼。</p>
+            <p>数字越大，细节越多，后面要用的豆子也更多。</p>
+            <p>它只管 AI 画出来的粗细。图纸的颗数，到下一页还可以再改。</p>
+            <button className="btn btn-primary btn-block" onClick={() => setPixelHelp(false)}>
+              知道啦
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

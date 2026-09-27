@@ -7,7 +7,7 @@ import { Prep } from './components/Prep';
 import { Setup } from './components/Setup';
 import { Studio } from './components/Studio';
 import { getSystem, getVariant } from './data/palettes';
-import { aiEdit, keepsBackground, mediaProxy, uploadImage } from './lib/api';
+import { aiEdit, keepsBackground, mediaProxy, uploadImage, withPixels } from './lib/api';
 import { ASPECTS, cropForAspect, type AspectId } from './lib/crop';
 import { bitmapFromRaster, blobForUpload, loadImage, rasterFromBitmap } from './lib/image';
 import { denoise, fitGrid, generatePattern, makePalette, removeBackground } from './lib/process';
@@ -37,6 +37,7 @@ export function App() {
   const [knockout, setKnockout] = useState(false);
   const beforeKnockout = useRef<ImageBitmap | null>(null);
   const [longSide, setLongSide] = useState(32);
+  const [pixelSize, setPixelSize] = useState(128);
   const [systemId, setSystemId] = useState('mard');
   const [variantId, setVariantId] = useState('221');
   const [merge, setMerge] = useState(8);
@@ -207,6 +208,7 @@ export function App() {
             knockout={knockout}
             canRestore={working !== original}
             generating={painting}
+            pixelSize={pixelSize}
             styled={styled}
             onCrop={setCrop}
             onTreat={(next) => {
@@ -281,8 +283,10 @@ export function App() {
               setKnockout(false);
               beforeKnockout.current = null;
             }}
+            onPixelSize={setPixelSize}
             onNote={showToast}
             onGenerate={(preset) => {
+              const pixels = pixelSize;
               void (async () => {
                 if (!styleBase.current) {
                   styleBase.current = working;
@@ -295,7 +299,7 @@ export function App() {
                 try {
                   const blob = await blobForUpload(base, baseCrop);
                   const url = await uploadImage(blob);
-                  const result = await aiEdit(url, preset.prompt, '1K');
+                  const result = await aiEdit(url, withPixels(preset.prompt, pixels), '1K');
                   const image = await loadImage(mediaProxy(result));
                   let bitmap = await createImageBitmap(image);
                   let cutoutNote = keepsBackground(preset.id) ? '新图好了，可以再裁一裁' : '新图好了，背景也去掉了';

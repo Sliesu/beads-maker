@@ -211,6 +211,27 @@ h1 {
 .style-card.on { background: var(--butter); box-shadow: 2px 2px 0 var(--line); }
 .style-card:disabled { opacity: 0.7; }
 .gen-size-block { margin-top: 4px; }
+.gen-pixel-block { margin-top: 10px; }
+.gen-pixel-block .hint { margin-top: 2px; }
+.hint-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.info-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .gen-size-block .hint { margin-top: 2px; }
 .gen-size { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .gen-size .chip { text-align: center; }
